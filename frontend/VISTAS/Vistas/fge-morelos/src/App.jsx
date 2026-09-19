@@ -1,6 +1,5 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
-import ProtectedRoute from "./components/ProtectedRoute";
 
 import Login from "./pages/Login";
 import CrearCuenta from "./pages/CrearCuenta";
@@ -18,13 +17,13 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/crear-cuenta" element={<CrearCuenta />} />
 
-        <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
-        <Route path="/peticiones/nueva" element={<ProtectedRoute><NuevaPeticion /></ProtectedRoute>} />
-        <Route path="/peticiones/buscar" element={<ProtectedRoute><BuscarPeticion /></ProtectedRoute>} />
-        <Route path="/peticiones/editar" element={<ProtectedRoute><EditarPeticion /></ProtectedRoute>} />
-        <Route path="/peticiones/editar/:id" element={<ProtectedRoute><EditarPeticion /></ProtectedRoute>} />
-        <Route path="/bitacora" element={<ProtectedRoute><Bitacora /></ProtectedRoute>} />
-        <Route path="/usuarios" element={<ProtectedRoute><Usuarios /></ProtectedRoute>} />
+        <Route path="/" element={<Home />} />
+        <Route path="/peticiones/nueva" element={<NuevaPeticion />} />
+        <Route path="/peticiones/buscar" element={<BuscarPeticion />} />
+        <Route path="/peticiones/editar" element={<EditarPeticion />} />
+        <Route path="/peticiones/editar/:id" element={<EditarPeticion />} />
+        <Route path="/bitacora" element={<Bitacora />} />
+        <Route path="/usuarios" element={<Usuarios />} />
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
