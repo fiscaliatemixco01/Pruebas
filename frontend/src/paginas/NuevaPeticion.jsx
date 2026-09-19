@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import AppLayout from "../components/AppLayout";
+import AppLayout from "../reutilizables/AppLayout";
 import PeticionWizard from "./PeticionWizard";
 
 export default function NuevaPeticion() {

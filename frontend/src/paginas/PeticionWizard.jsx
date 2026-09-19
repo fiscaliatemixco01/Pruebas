@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { peticionesApi } from "../api/peticiones";
 import { usuariosApi } from "../api/usuarios";
-import { Checkbox, RadioGroup, SelectField, TextArea, TextField } from "../components/Field";
+import { Checkbox, RadioGroup, SelectField, TextArea, TextField } from "../reutilizables/Field";
 
 const emptyPaso1 = {
   llamado_id: "",

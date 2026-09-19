@@ -1,4 +1,4 @@
-import AppLayout from "../components/AppLayout";
+import AppLayout from "../reutilizables/AppLayout";
 import { useAuth } from "../context/AuthContext";
 import "./Home.css";
 

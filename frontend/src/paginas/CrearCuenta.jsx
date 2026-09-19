@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { authApi } from "../api/auth";
-import { SelectField, TextField } from "../components/Field";
+import { SelectField, TextField } from "../reutilizables/Field";
+import logoFge from '../assets/FISCALIA_LOGO.png';
+
 import "./Auth.css";
 
 const ROLES = ["Administrador", "Mesa de partes", "Perito", "Consulta"];
@@ -62,7 +64,7 @@ export default function CrearCuenta() {
     <div className="auth-shell">
       <div className="auth-side">
         <div className="auth-logo-circle">
-          <img src="/fge-shield.svg" alt="" />
+           <img src={logoFge} alt="Fiscalía General del Estado de Morelos" className="shell-brand-shield" />
           <div>
             <strong>MORELOS</strong>
             <span>Fiscalía General del Estado</span>
