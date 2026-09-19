@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import AppLayout from "../components/AppLayout";
+import AppLayout from "../reutilizables/AppLayout";
 import { peticionesApi } from "../api/peticiones";
 
 export default function BuscarPeticion() {

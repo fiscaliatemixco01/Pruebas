@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import AppLayout from "../components/AppLayout";
+import AppLayout from "../reutilizables/AppLayout";
 import { bitacoraApi } from "../api/bitacora";
 
 export default function Bitacora() {

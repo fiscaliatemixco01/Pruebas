@@ -1,5 +1,6 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth, iniciales } from "../context/AuthContext";
+import logoFge from '../assets/FISCALIA_LOGO.png';
 import "./AppLayout.css";
 
 const NAV_ITEMS = [
@@ -23,7 +24,7 @@ export default function AppLayout({ title, children }) {
     <div className="shell">
       <header className="shell-header">
         <div className="shell-brand">
-          <img src="/logo-fge.png" alt="Fiscalía General del Estado de Morelos" className="shell-brand-shield" />
+          <img src={logoFge} alt="Fiscalía General del Estado de Morelos" className="shell-brand-shield" />
         </div>
         {title ? <h1 className="shell-title">{title}</h1> : <span />}
         <div className="shell-avatar" title={user ? `${user.nombre} ${user.apellidos}` : ""}>

@@ -26,8 +26,8 @@
 }
 
 .auth-logo-circle img {
-  width: 64px;
-  height: 64px;
+  width: 180px;
+  height: auto;
 }
 
 .auth-logo-circle strong {
