@@ -1,0 +1,149 @@
+.shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.shell-header {
+  display: grid;
+  grid-template-columns: 260px 1fr 56px;
+  align-items: center;
+  background: var(--navy-900);
+  color: white;
+  padding: 0 24px;
+  height: 76px;
+  flex-shrink: 0;
+}
+
+.shell-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--sky-50);
+  margin-left: -24px;
+  height: 100%;
+  padding: 0 20px;
+}
+
+.shell-brand-shield {
+  height: 56px;
+  width: auto;
+  max-width: 220px;
+  object-fit: contain;
+}
+
+.shell-brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+  color: var(--navy-900);
+}
+
+.shell-brand-text strong {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  letter-spacing: 0.02em;
+}
+
+.shell-brand-text span {
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: var(--navy-700);
+}
+
+.shell-title {
+  margin: 0;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  font-weight: 600;
+}
+
+.shell-avatar {
+  justify-self: end;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: var(--sky-50);
+  color: var(--navy-900);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.shell-body {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  min-height: 0;
+}
+
+.shell-nav {
+  background: var(--navy-900);
+  padding: 28px 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.shell-nav-links {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.shell-nav-btn {
+  display: block;
+  text-align: center;
+  text-decoration: none;
+  background: var(--sky-50);
+  color: var(--navy-900);
+  font-weight: 700;
+  padding: 13px 16px;
+  border-radius: var(--radius-pill);
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.shell-nav-btn:hover {
+  background: white;
+}
+
+.shell-nav-btn.is-active {
+  background: white;
+  box-shadow: inset 0 0 0 2px var(--navy-700);
+}
+
+.shell-logout {
+  margin-top: 24px;
+}
+
+.shell-content {
+  padding: 32px 40px;
+  overflow-y: auto;
+}
+
+@media (max-width: 860px) {
+  .shell-header {
+    grid-template-columns: auto 1fr auto;
+  }
+  .shell-body {
+    grid-template-columns: 1fr;
+  }
+  .shell-nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+    padding: 16px;
+  }
+  .shell-nav-links {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .shell-content {
+    padding: 20px;
+  }
+}

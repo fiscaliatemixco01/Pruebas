@@ -1,0 +1,60 @@
+:root {
+  /* Marca FGE Morelos */
+  --navy-900: #1c2b4e;
+  --navy-800: #223462;
+  --navy-700: #2c4272;
+  --ink: #16213d;
+  --sky-50: #eaf1fc;
+  --sky-100: #dbe8fa;
+  --line: #d7deea;
+  --paper: #ffffff;
+  --canvas: #f5f7fb;
+  --text: #1c2333;
+  --text-muted: #5b6478;
+  --danger: #b3261e;
+  --success: #1e7d4f;
+
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-pill: 999px;
+
+  --shadow-card: 0 1px 2px rgba(20, 30, 60, 0.06), 0 8px 24px rgba(20, 30, 60, 0.06);
+
+  --font-body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --font-display: "Fraunces", "Georgia", serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  color: var(--text);
+  background: var(--canvas);
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+a {
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--navy-700);
+  outline-offset: 2px;
+}
