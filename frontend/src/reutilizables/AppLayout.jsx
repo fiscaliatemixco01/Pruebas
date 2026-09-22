@@ -4,16 +4,18 @@ import logoFge from '../assets/FISCALIA_LOGO.png';
 import "./AppLayout.css";
 
 const NAV_ITEMS = [
-  { to: "/peticiones/nueva", label: "Registrar petición" },
-  { to: "/peticiones/buscar", label: "Buscar" },
-  { to: "/peticiones/editar", label: "Editar" },
-  { to: "/bitacora", label: "Bitácora" },
-  { to: "/usuarios", label: "Usuarios" },
+  { to: "/peticiones/nueva", label: "Registrar petición", roles: ["Administrador", "Receptor"] },
+  { to: "/peticiones/buscar", label: "Buscar", roles: ["Administrador", "Receptor", "Perito"] },
+  { to: "/peticiones/editar", label: "Editar", roles: ["Administrador", "Receptor"] },
+  { to: "/bitacora", label: "Bitácora", roles: ["Administrador"] },
+  { to: "/usuarios", label: "Usuarios", roles: ["Administrador"] },
 ];
 
 export default function AppLayout({ title, children }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+
+  const visibleItems = NAV_ITEMS.filter((item) => item.roles.includes(user?.rol));
 
   async function handleLogout() {
     await logout();
@@ -35,7 +37,7 @@ export default function AppLayout({ title, children }) {
       <div className="shell-body">
         <nav className="shell-nav">
           <div className="shell-nav-links">
-            {NAV_ITEMS.map((item) => (
+            {visibleItems.map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}

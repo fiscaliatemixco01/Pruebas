@@ -1,12 +1,12 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { authApi } from "../api/auth";
 import { SelectField, TextField } from "../reutilizables/Field";
 import logoFge from '../assets/FISCALIA_LOGO.png';
 
 import "./Auth.css";
 
-const ROLES = ["Administrador", "Mesa de partes", "Perito", "Consulta"];
+const ROLES = ["Administrador", "Receptor", "Perito"];
 
 export default function CrearCuenta() {
   const navigate = useNavigate();
@@ -135,6 +135,9 @@ export default function CrearCuenta() {
           </div>
           <span className="field-hint">*Campo obligatorio*</span>
           <p className="auth-alt">Aviso de consentimiento de datos biométricos</p>
+          <p className="auth-alt">
+            ¿Ya tienes una cuenta? <Link to="/login">Iniciar sesión</Link>
+          </p>
         </form>
       </div>
     </div>

@@ -19,12 +19,50 @@ export default function App() {
         <Route path="/crear-cuenta" element={<CrearCuenta />} />
 
         <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
-        <Route path="/peticiones/nueva" element={<ProtectedRoute><NuevaPeticion /></ProtectedRoute>} />
-        <Route path="/peticiones/buscar" element={<ProtectedRoute><BuscarPeticion /></ProtectedRoute>} />
-        <Route path="/peticiones/editar" element={<ProtectedRoute><EditarPeticion /></ProtectedRoute>} />
-        <Route path="/peticiones/editar/:id" element={<ProtectedRoute><EditarPeticion /></ProtectedRoute>} />
-        <Route path="/bitacora" element={<ProtectedRoute><Bitacora /></ProtectedRoute>} />
-        <Route path="/usuarios" element={<ProtectedRoute><Usuarios /></ProtectedRoute>} />
+
+        <Route
+          path="/peticiones/nueva"
+          element={
+            <ProtectedRoute roles={["Administrador", "Receptor"]}>
+              <NuevaPeticion />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/peticiones/buscar"
+          element={<ProtectedRoute><BuscarPeticion /></ProtectedRoute>}
+        />
+
+        <Route
+          path="/peticiones/editar"
+          element={
+            <ProtectedRoute roles={["Administrador", "Receptor"]}>
+              <EditarPeticion />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/peticiones/editar/:id"
+          element={<ProtectedRoute><EditarPeticion /></ProtectedRoute>}
+        />
+
+        <Route
+          path="/bitacora"
+          element={
+            <ProtectedRoute roles={["Administrador"]}>
+              <Bitacora />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/usuarios"
+          element={
+            <ProtectedRoute roles={["Administrador"]}>
+              <Usuarios />
+            </ProtectedRoute>
+          }
+        />
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

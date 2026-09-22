@@ -2,11 +2,14 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import AppLayout from "../reutilizables/AppLayout";
 import { peticionesApi } from "../api/peticiones";
+import { useAuth } from "../context/AuthContext";
 import PeticionWizard from "./PeticionWizard";
 
 export default function EditarPeticion() {
   const { id: idFromRoute } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const esPerito = user?.rol === "Perito";
 
   const [numeroLlamado, setNumeroLlamado] = useState("");
   const [peticion, setPeticion] = useState(null);
@@ -23,6 +26,13 @@ export default function EditarPeticion() {
     setLoading(true);
     try {
       const data = await peticionesApi.obtener(id);
+
+      if (esPerito && String(data.perito_id) !== String(user.id)) {
+        setError("No tienes acceso a esta petición: no está asignada a ti.");
+        setPeticion(null);
+        return;
+      }
+
       setPeticion(data);
     } catch (err) {
       setError(err.message || "No se encontró la petición.");
@@ -41,7 +51,13 @@ export default function EditarPeticion() {
         setError("No se encontró ninguna petición con ese número de llamado.");
         setPeticion(null);
       } else {
-        setPeticion(resultados[0]);
+        const encontrada = resultados[0];
+        if (esPerito && String(encontrada.perito_id) !== String(user.id)) {
+          setError("No tienes acceso a esta petición: no está asignada a ti.");
+          setPeticion(null);
+          return;
+        }
+        setPeticion(encontrada);
       }
     } catch (err) {
       setError(err.message || "No se pudo completar la búsqueda.");
@@ -51,8 +67,8 @@ export default function EditarPeticion() {
   }
 
   return (
-    <AppLayout title="Editar petición">
-      {!peticion && (
+    <AppLayout title={esPerito ? "Ver petición" : "Editar petición"}>
+      {!peticion && !esPerito && (
         <form className="card" onSubmit={handleBuscar}>
           <div className="search-row" style={{ marginBottom: 0 }}>
             <label>Número de llamado:</label>
@@ -82,12 +98,13 @@ export default function EditarPeticion() {
                 setNumeroLlamado("");
               }}
             >
-              Buscar otra petición
+              {esPerito ? "Volver" : "Buscar otra petición"}
             </button>
           </div>
           <PeticionWizard
             mode="editar"
             initialData={peticion}
+            soloLectura={esPerito}
             onSaved={() => navigate("/peticiones/buscar")}
           />
         </>
