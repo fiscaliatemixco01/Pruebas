@@ -228,4 +228,36 @@ JOIN usuarios u_rec ON u_rec.id = p.receptor_id -- INNER JOIN: receptor_id es NO
 LEFT JOIN usuarios u_per ON u_per.id = p.perito_id      -- LEFT JOIN: perito_id puede ser NULL (aún sin asignar)
 LEFT JOIN usuarios u_ent ON u_ent.id = p.quien_recibe_id; -- LEFT JOIN: quien_recibe_id puede ser NULL (aún sin entrega)
 
+
+CREATE OR REPLACE VIEW vw_peticiones AS
+SELECT
+    p.id,
+    p.numero_llamado,
+    l.codigo AS tipo_llamado,
+    p.fecha_recibido,
+    p.hora_recibido,
+    p.receptor_id,              -- NUEVO
+    u_rec.nombre AS nombre_receptor,
+    p.nombre_ministerio_publico,
+    p.con_detenido,             -- NUEVO (booleano crudo, además del texto)
+    CASE WHEN p.con_detenido THEN 'CON DETENIDO' ELSE 'SIN DETENIDO' END AS estatus_detenido,
+    p.materia_id,               -- NUEVO
+    m.nombre AS materia,
+    p.numero_carpeta,
+    p.descripcion_solicitud,
+    p.llamado_id,               -- NUEVO
+    p.perito_id,                -- NUEVO
+    u_per.nombre AS nombre_perito,
+    p.entrega_dictamen,
+    p.entrega_informe,
+    p.entrega_requerimiento,
+    p.quien_recibe_id,          -- NUEVO
+    u_ent.nombre AS nombre_quien_recibe
+FROM peticiones p
+JOIN llamados l ON l.id = p.llamado_id
+JOIN materias m ON m.id = p.materia_id
+JOIN usuarios u_rec ON u_rec.id = p.receptor_id
+LEFT JOIN usuarios u_per ON u_per.id = p.perito_id
+LEFT JOIN usuarios u_ent ON u_ent.id = p.quien_recibe_id;
+
 COMMIT; 
