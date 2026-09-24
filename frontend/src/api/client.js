@@ -7,14 +7,14 @@
 // queries contra tu base de datos Postgres.
 //
 // Configura la URL de tu API en un archivo `.env` en la raíz del proyecto:
-//   VITE_API_URL=http://localhost:4000/api
+//   VITE_API_URL=http://localhost:3000/api
 //
 // Y expón en tu backend endpoints REST equivalentes a los que se listan en
 // cada archivo de src/api/*.js (peticiones.js, usuarios.js, bitacora.js,
 // auth.js). Todos regresan/reciben JSON.
 // ---------------------------------------------------------------------------
 
-const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
+const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
 
 async function request(path, { method = "GET", body, params } = {}) {
   let url = `${BASE_URL}${path}`;
