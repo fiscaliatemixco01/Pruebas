@@ -75,6 +75,106 @@ app.get('/api/peritos', async (req, res) => {
   }
 });
 
+
+// Lista de peticiones (usa la vista con nombres legibles)
+app.get('/api/peticiones', async (req, res) => {
+  try {
+    const resultado = await pool.query(
+      'SELECT * FROM vw_peticiones ORDER BY fecha_recibido DESC, hora_recibido DESC'
+    );
+    res.json(resultado.rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al consultar peticiones' });
+  }
+});
+
+// Bitácora de acciones
+app.get('/api/bitacora', async (req, res) => {
+  try {
+    const resultado = await pool.query(
+      `SELECT b.id, b.fecha_hora,
+              u.nombre AS usuario,
+              a.nom_accion AS accion,
+              b.pet_id
+       FROM bitacora b
+       JOIN usuarios u ON u.id = b.us_id
+       JOIN acciones a ON a.id = b.acc_id
+       ORDER BY b.fecha_hora DESC`
+    );
+    res.json(resultado.rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al consultar bitácora' });
+  }
+});
+
+
+
+// Crear una nueva petición
+app.post('/api/peticiones', async (req, res) => {
+  const {
+    llamado_id,
+    receptor_id,
+    nombre_ministerio_publico,
+    con_detenido,
+    materia_id,
+    numero_carpeta,
+    descripcion_solicitud
+  } = req.body;
+
+  try {
+    const resultado = await pool.query(
+      `INSERT INTO peticiones
+        (llamado_id, receptor_id, nombre_ministerio_publico, con_detenido, materia_id, numero_carpeta, descripcion_solicitud)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING *`,
+      [llamado_id, receptor_id, nombre_ministerio_publico, con_detenido, materia_id, numero_carpeta, descripcion_solicitud]
+    );
+
+    res.status(201).json(resultado.rows[0]);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al crear la petición' });
+  }
+});
+
+
+// Actualizar una petición (asignar perito y marcar entregas)
+app.put('/api/peticiones/:id', async (req, res) => {
+  const { id } = req.params;
+  const {
+    perito_id,
+    entrega_dictamen,
+    entrega_informe,
+    entrega_requerimiento,
+    quien_recibe_id
+  } = req.body;
+
+  try {
+    const resultado = await pool.query(
+      `UPDATE peticiones
+       SET perito_id = $1,
+           entrega_dictamen = $2,
+           entrega_informe = $3,
+           entrega_requerimiento = $4,
+           quien_recibe_id = $5
+       WHERE id = $6
+       RETURNING *`,
+      [perito_id, entrega_dictamen, entrega_informe, entrega_requerimiento, quien_recibe_id, id]
+    );
+
+    if (resultado.rows.length === 0) {
+      return res.status(404).json({ error: 'Petición no encontrada' });
+    }
+
+    res.json(resultado.rows[0]);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al actualizar la petición' });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Servidor corriendo en http://localhost:${PORT}`);
 });
