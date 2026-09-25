@@ -66,7 +66,27 @@ CREATE TABLE bitacora (
 -- Índice recomendado para mejorar el rendimiento de consultas a la bitácora
 CREATE INDEX idx_bitacora_usuario_fecha ON bitacora(us_id, fecha_hora DESC);
 
+
 INSERT INTO roles (nom_rol) VALUES
   ('Administrador'),
   ('Receptor'),
   ('Perito');
+
+
+INSERT INTO usuarios (nombre, correo, rol_id) VALUES ('Prueba Admin', 'admin@test.com', 1);
+
+
+INSERT INTO acciones (nom_accion) VALUES
+    ('Inicio de sesión'),
+    ('Cierre de sesión'),
+    ('Crear petición'),
+    ('Actualizar petición'),
+    ('Crear usuario'),
+    ('Actualizar usuario');
+
+
+SELECT * FROM roles;
+SELECT * FROM materias;
+SELECT * FROM acciones;
+SELECT * FROM peticiones;
+SELECT * FROM bitacora;
