@@ -93,13 +93,17 @@ app.get('/api/peticiones', async (req, res) => {
 app.get('/api/bitacora', async (req, res) => {
   try {
     const resultado = await pool.query(
-      `SELECT b.id, b.fecha_hora,
-              u.nombre AS usuario,
-              a.nom_accion AS accion,
-              b.pet_id
+      `SELECT
+          b.id,
+          p.numero_llamado,
+          to_char(b.fecha_hora, 'YYYY-MM-DD') AS fecha,
+          to_char(b.fecha_hora, 'HH24:MI') AS hora,
+          a.nom_accion AS modificacion,
+          u.nombre AS realizado_por
        FROM bitacora b
        JOIN usuarios u ON u.id = b.us_id
        JOIN acciones a ON a.id = b.acc_id
+       LEFT JOIN peticiones p ON p.id = b.pet_id
        ORDER BY b.fecha_hora DESC`
     );
     res.json(resultado.rows);
@@ -132,13 +136,21 @@ app.post('/api/peticiones', async (req, res) => {
       [llamado_id, receptor_id, nombre_ministerio_publico, con_detenido, materia_id, numero_carpeta, descripcion_solicitud]
     );
 
-    res.status(201).json(resultado.rows[0]);
+    const nuevaPeticion = resultado.rows[0];
+
+    // Registrar la acción en la bitácora
+    await pool.query(
+      `INSERT INTO bitacora (us_id, acc_id, pet_id, fecha_hora)
+       VALUES ($1, $2, $3, NOW())`,
+      [receptor_id, 3, nuevaPeticion.id]
+    );
+
+    res.status(201).json(nuevaPeticion);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Error al crear la petición' });
   }
 });
-
 
 // Actualizar una petición (asignar perito y marcar entregas)
 app.put('/api/peticiones/:id', async (req, res) => {
