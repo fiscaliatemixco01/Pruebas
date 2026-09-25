@@ -63,7 +63,7 @@ CREATE TABLE bitacora (
     --     ON DELETE SET NULL
 );
 
--- Índice recomendado para mejorar el rendimiento de consultas a la bitácora
+
 CREATE INDEX idx_bitacora_usuario_fecha ON bitacora(us_id, fecha_hora DESC);
 
 INSERT INTO roles (nom_rol) VALUES
