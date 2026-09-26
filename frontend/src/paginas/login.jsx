@@ -1,8 +1,6 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import logoFge from '../assets/FISCALIA_LOGO.png';
-import iconoRostro from '../assets/FACE_ID.png';
 import "./Auth.css";
 
 export default function Login() {
@@ -10,6 +8,7 @@ export default function Login() {
   const navigate = useNavigate();
   const [usuario, setUsuario] = useState("");
   const [contrasena, setContrasena] = useState("");
+  const [recordar, setRecordar] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -18,7 +17,7 @@ export default function Login() {
     setError("");
     setLoading(true);
     try {
-      await login(usuario, contrasena);
+      await login(usuario, contrasena, recordar);
       navigate("/");
     } catch (err) {
       setError(err.message || "No se pudo iniciar sesión");
@@ -29,31 +28,33 @@ export default function Login() {
 
   return (
     <div className="auth-shell">
-      <div className="auth-side">
-        <div className="auth-logo-circle">
-          <img src={logoFge} alt="Logo Fiscalía" />
+      <div className="auth-card">
+        <div className="auth-badge">
+          <img src="/fge-shield-badge.png" alt="Escudo Fiscalía General del Estado de Morelos" />
         </div>
-      </div>
-      <div className="auth-main">
-        <form className="auth-form" onSubmit={handleSubmit}>
-          <img src={iconoRostro} alt="Icono Biométrico" className="face-icon" />
+        <div className="auth-heading">
+          <h1>Fiscalía General</h1>
+          <p>ESTADO DE MORELOS</p>
+        </div>
 
+        <form className="auth-form" onSubmit={handleSubmit}>
           {error ? <div className="status-banner error">{error}</div> : null}
 
-          <label className="field">
-            <span className="field-label">Usuario</span>
+          <label className="auth-field">
+            <span className="auth-field-label">Correo electrónico o placa</span>
             <input
-              className="field-input"
+              className="auth-field-input"
               value={usuario}
               onChange={(e) => setUsuario(e.target.value)}
-              placeholder="usuario@fgemorelos.gob.mx"
+              placeholder="usuario@fiscalia.gob.mx o placa"
               required
             />
           </label>
-          <label className="field">
-            <span className="field-label">Contraseña</span>
+
+          <label className="auth-field">
+            <span className="auth-field-label">Contraseña</span>
             <input
-              className="field-input"
+              className="auth-field-input"
               type="password"
               value={contrasena}
               onChange={(e) => setContrasena(e.target.value)}
@@ -61,12 +62,23 @@ export default function Login() {
             />
           </label>
 
+          <label className="auth-remember">
+            <input
+              type="checkbox"
+              checked={recordar}
+              onChange={(e) => setRecordar(e.target.checked)}
+            />
+            Recordarme en este dispositivo
+          </label>
+
           <button className="btn btn-primary auth-submit" type="submit" disabled={loading}>
-            {loading ? "Ingresando..." : "Inicio de sesión"}
+            {loading ? "Ingresando..." : "Ingresar al sistema"}
           </button>
 
           <p className="auth-alt">
-            ¿No tienes una cuenta? <Link to="/crear-cuenta">Crear cuenta</Link>
+            <button type="button" onClick={() => setError("Contacta al administrador del sistema para restablecer tu contraseña.")}>
+              ¿Olvidó su contraseña?
+            </button>
           </p>
         </form>
       </div>
