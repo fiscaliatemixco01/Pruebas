@@ -4,7 +4,7 @@ import AppLayout from "../reutilizables/AppLayout";
 import { peticionesApi } from "../api/peticiones";
 
 export default function BuscarPeticion() {
-  const [filtros, setFiltros] = useState({ numero_llamado: "", perito: "", fecha: "" });
+  const [filtros, setFiltros] = useState({ numero_llamado: "", perito: "", fecha: "", numero_carpeta: "" });
   const [resultados, setResultados] = useState(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -54,7 +54,7 @@ export default function BuscarPeticion() {
           </button>
         </div>
 
-        <div className="search-row" style={{ marginBottom: 0 }}>
+        <div className="search-row">
           <label>Fecha:</label>
           <input
             type="date"
@@ -63,6 +63,18 @@ export default function BuscarPeticion() {
             onChange={(e) => update("fecha", e.target.value)}
           />
           <button className="btn btn-primary" onClick={() => buscar("fecha")} disabled={loading}>
+            Buscar
+          </button>
+        </div>
+
+        <div className="search-row" style={{ marginBottom: 0 }}>
+          <label>Número de carpeta:</label>
+          <input
+            className="field-input"
+            value={filtros.numero_carpeta}
+            onChange={(e) => update("numero_carpeta", e.target.value)}
+          />
+          <button className="btn btn-primary" onClick={() => buscar("numero_carpeta")} disabled={loading}>
             Buscar
           </button>
         </div>
@@ -94,6 +106,10 @@ export default function BuscarPeticion() {
                     <span className="label">Materia</span>
                     <span className="value">{r.materia}</span>
                   </div>
+                  <div>
+                    <span className="label">Carpeta</span>
+                    <span className="value">{r.numero_carpeta}</span>
+                  </div>
                 </div>
                 <Link className="btn btn-secondary" to={`/peticiones/editar/${r.id}`}>
                   Ver / editar
@@ -106,3 +122,4 @@ export default function BuscarPeticion() {
     </AppLayout>
   );
 }
+

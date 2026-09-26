@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import fiscaliaLogo from "../assets/FISCALIA_LOGO.png";
 import "./Auth.css";
 
 export default function Login() {
@@ -30,7 +31,7 @@ export default function Login() {
     <div className="auth-shell">
       <div className="auth-card">
         <div className="auth-badge">
-          <img src="/fge-shield-badge.png" alt="Escudo Fiscalía General del Estado de Morelos" />
+          <img src={fiscaliaLogo} alt="Escudo Fiscalía General del Estado de Morelos" />
         </div>
         <div className="auth-heading">
           <h1>Fiscalía General</h1>

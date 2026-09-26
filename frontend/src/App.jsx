@@ -2,7 +2,11 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./reutilizables/ProtectedRoute";
 
-import Login from "./paginas/Login";
+import Estadisticas from "./paginas/Estadisticas";
+import Notificaciones from "./paginas/Notificaciones";
+import PeticionPerito from "./paginas/PeticionPerito";
+// import ComingSoon from "./paginas/ComingSoon"; 
+import Login from "./paginas/login";
 import CrearCuenta from "./paginas/CrearCuenta";
 import Home from "./paginas/Home";
 import NuevaPeticion from "./paginas/NuevaPeticion";
@@ -64,6 +68,30 @@ export default function App() {
           }
         />
 
+
+      <Route
+        path="/estadisticas"
+        element={
+          <ProtectedRoute roles={["Administrador"]}>
+            <Estadisticas />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/notificaciones"
+        element={<ProtectedRoute><Notificaciones /></ProtectedRoute>}
+      />
+
+      <Route
+        path="/peticiones/perito"
+        element={
+          <ProtectedRoute roles={["Perito"]}>
+            <PeticionPerito />
+          </ProtectedRoute>
+        }
+      />
+      
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </AuthProvider>
