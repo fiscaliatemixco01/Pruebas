@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const pool = require('./db');
 const authRoutes = require('./routes/auth');
+const estadisticasRoutes = require('./routes/estadisticas'); 
 const cors = require('cors');
 
 const app = express();
@@ -20,6 +21,7 @@ app.get('/', (req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
+app.use('/api/estadisticas', estadisticasRoutes);
 
 app.get('/api/usuarios', async (req, res) => {
   try {
