@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { peticionesApi } from "../api/peticiones";
 import { usuariosApi } from "../api/usuarios";
-import { Checkbox, RadioGroup, SelectField, TextArea, TextField } from "../reutilizables/Field";
+import { RadioGroup, SelectField, TextArea, TextField } from "../reutilizables/Field";
 
 const emptyPaso1 = {
   llamado_id: "",
@@ -16,9 +16,6 @@ const emptyPaso1 = {
 
 const emptyPaso2 = {
   perito_id: "",
-  entrega_dictamen: false,
-  entrega_informe: false,
-  entrega_requerimiento: false,
   quien_recibe_id: "",
 };
 
@@ -26,11 +23,8 @@ const emptyPaso2 = {
  * mode: "nueva" | "editar"
  * initialData: registro existente (viene de vw_peticiones) cuando mode === "editar"
  * onSaved: callback cuando se guarda con éxito
- * soloLectura: cuando true (Perito viendo una petición asignada), deshabilita
- *              todos los campos y oculta el botón de guardar. Solo aplica
- *              en mode === "editar".
  */
-export default function PeticionWizard({ mode = "nueva", initialData = null, onSaved, soloLectura = false }) {
+export default function PeticionWizard({ mode = "nueva", initialData = null, onSaved }) {
   const esEdicion = mode === "editar";
 
   // En edición mostramos todo en un solo formulario (fecha, hora, número de
@@ -64,9 +58,6 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
     ...(initialData
       ? {
           perito_id: initialData.perito_id ?? "",
-          entrega_dictamen: Boolean(initialData.entrega_dictamen),
-          entrega_informe: Boolean(initialData.entrega_informe),
-          entrega_requerimiento: Boolean(initialData.entrega_requerimiento),
           quien_recibe_id: initialData.quien_recibe_id ?? "",
         }
       : {}),
@@ -168,9 +159,6 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
     try {
       const saved = await peticionesApi.completar(peticionId, {
         perito_id: paso2.perito_id || null,
-        entrega_dictamen: paso2.entrega_dictamen,
-        entrega_informe: paso2.entrega_informe,
-        entrega_requerimiento: paso2.entrega_requerimiento,
         quien_recibe_id: paso2.quien_recibe_id || null,
       });
       setSuccess("Registro guardado correctamente.");
@@ -186,7 +174,6 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
   // número de llamado y tipo de llamado (van juntos y quedan bloqueados).
   async function handleGuardarEdicion(e) {
     e.preventDefault();
-    if (soloLectura) return; // resguardo extra: un Perito nunca dispara el guardado
     setError("");
     setSuccess("");
     const msg = validarPaso1();
@@ -204,9 +191,6 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
         numero_carpeta: paso1.numero_carpeta,
         descripcion_solicitud: paso1.descripcion_solicitud,
         perito_id: paso2.perito_id || null,
-        entrega_dictamen: paso2.entrega_dictamen,
-        entrega_informe: paso2.entrega_informe,
-        entrega_requerimiento: paso2.entrega_requerimiento,
         quien_recibe_id: paso2.quien_recibe_id || null,
       });
       setSuccess("Cambios guardados correctamente.");
@@ -231,113 +215,83 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
       <div>
         {error ? <div className="status-banner error">{error}</div> : null}
         {success ? <div className="status-banner success">{success}</div> : null}
-        {soloLectura ? (
-          <div className="status-banner" style={{ marginBottom: 16 }}>
-            Estás viendo esta petición en modo solo lectura.
-          </div>
-        ) : null}
 
         <form className="card" onSubmit={handleGuardarEdicion}>
-          <fieldset disabled={soloLectura} style={{ border: 0, padding: 0, margin: 0 }}>
-            {bloqueDatosLlamado}
+          {bloqueDatosLlamado}
 
-            <div className="form-grid two-col" style={{ marginBottom: 24 }}>
-              <TextField label="Tipo de llamado" value={meta.tipo_llamado} readOnly disabled className="field-readonly" />
-            </div>
+          <div className="form-grid two-col" style={{ marginBottom: 24 }}>
+            <TextField label="Tipo de llamado" value={meta.tipo_llamado} readOnly disabled className="field-readonly" />
+          </div>
 
-            <div className="form-grid">
-              <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-                <SelectField
-                  label="Nombre de receptor"
-                  options={opcionesUsuarios}
-                  value={paso1.receptor_id}
-                  onChange={(e) => update1("receptor_id", e.target.value)}
-                  required
-                />
-                <TextField
-                  label="Nombre de MP"
-                  value={paso1.nombre_ministerio_publico}
-                  onChange={(e) => update1("nombre_ministerio_publico", e.target.value)}
-                  required
-                />
-                <RadioGroup
-                  name="con_detenido"
-                  value={paso1.con_detenido}
-                  onChange={(v) => update1("con_detenido", v === "true")}
-                  options={[
-                    { value: true, label: "Con detenido" },
-                    { value: false, label: "Sin detenido" },
-                  ]}
-                />
-                <SelectField
-                  label="Materia"
-                  options={opcionesMaterias}
-                  value={paso1.materia_id}
-                  onChange={(e) => update1("materia_id", e.target.value)}
-                  required
-                />
-                <TextField
-                  label="Número de carpeta"
-                  value={paso1.numero_carpeta}
-                  onChange={(e) => update1("numero_carpeta", e.target.value)}
-                  required
-                />
-              </div>
-
-              <TextArea
-                label="Descripción de lo que solicita el MP"
-                value={paso1.descripcion_solicitud}
-                onChange={(e) => update1("descripcion_solicitud", e.target.value)}
+          <div className="form-grid">
+            <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+              <SelectField
+                label="Nombre de receptor"
+                options={opcionesUsuarios}
+                value={paso1.receptor_id}
+                onChange={(e) => update1("receptor_id", e.target.value)}
+                required
+              />
+              <TextField
+                label="Nombre de MP"
+                value={paso1.nombre_ministerio_publico}
+                onChange={(e) => update1("nombre_ministerio_publico", e.target.value)}
+                required
+              />
+              <RadioGroup
+                name="con_detenido"
+                value={paso1.con_detenido}
+                onChange={(v) => update1("con_detenido", v === "true")}
+                options={[
+                  { value: true, label: "Con detenido" },
+                  { value: false, label: "Sin detenido" },
+                ]}
+              />
+              <SelectField
+                label="Materia"
+                options={opcionesMaterias}
+                value={paso1.materia_id}
+                onChange={(e) => update1("materia_id", e.target.value)}
+                required
+              />
+              <TextField
+                label="Número de carpeta"
+                value={paso1.numero_carpeta}
+                onChange={(e) => update1("numero_carpeta", e.target.value)}
                 required
               />
             </div>
 
-            <div className="form-grid two-col" style={{ marginTop: 24 }}>
-              <SelectField
-                label="Asignar perito"
-                options={opcionesPeritos}
-                placeholder="Selecciona un perito..."
-                value={paso2.perito_id}
-                onChange={(e) => update2("perito_id", e.target.value)}
-              />
-              <SelectField
-                label="Nombre del que recibe (entrega)"
-                options={opcionesUsuarios}
-                placeholder="Selecciona..."
-                value={paso2.quien_recibe_id}
-                onChange={(e) => update2("quien_recibe_id", e.target.value)}
-              />
-            </div>
+            <TextArea
+              label="Descripción de lo que solicita el MP"
+              value={paso1.descripcion_solicitud}
+              onChange={(e) => update1("descripcion_solicitud", e.target.value)}
+              required
+            />
+          </div>
 
-            <div style={{ marginTop: 20 }}>
-              <span className="field-label">Entrega</span>
-              <div className="radio-row">
-                <Checkbox
-                  label="Dictamen"
-                  checked={paso2.entrega_dictamen}
-                  onChange={(v) => update2("entrega_dictamen", v)}
-                />
-                <Checkbox
-                  label="Informe"
-                  checked={paso2.entrega_informe}
-                  onChange={(v) => update2("entrega_informe", v)}
-                />
-                <Checkbox
-                  label="Requerimiento"
-                  checked={paso2.entrega_requerimiento}
-                  onChange={(v) => update2("entrega_requerimiento", v)}
-                />
-              </div>
-            </div>
-          </fieldset>
+          <div className="form-grid two-col" style={{ marginTop: 24 }}>
+            <SelectField
+              label="Asignar perito"
+              options={opcionesPeritos}
+              placeholder="Selecciona un perito..."
+              value={paso2.perito_id}
+              onChange={(e) => update2("perito_id", e.target.value)}
+            />
+            <SelectField
+              label="Nombre del que recibe (entrega)"
+              options={opcionesUsuarios}
+              placeholder="Selecciona..."
+              value={paso2.quien_recibe_id}
+              onChange={(e) => update2("quien_recibe_id", e.target.value)}
+            />
+          </div>
 
-          {!soloLectura && (
-            <div className="btn-row end" style={{ marginTop: 24 }}>
-              <button className="btn btn-primary" type="submit" disabled={loading}>
-                {loading ? "Guardando..." : "Guardar cambios"}
-              </button>
-            </div>
-          )}
+          <div className="btn-row end" style={{ marginTop: 24 }}>
+            <button className="btn btn-primary" type="submit" disabled={loading}>
+              {loading ? "Guardando..." : "Guardar cambios"}
+            </button>
+          </div>
         </form>
       </div>
     );
@@ -445,27 +399,6 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
               value={paso2.quien_recibe_id}
               onChange={(e) => update2("quien_recibe_id", e.target.value)}
             />
-          </div>
-
-          <div style={{ marginTop: 20 }}>
-            <span className="field-label">Entrega</span>
-            <div className="radio-row">
-              <Checkbox
-                label="Dictamen"
-                checked={paso2.entrega_dictamen}
-                onChange={(v) => update2("entrega_dictamen", v)}
-              />
-              <Checkbox
-                label="Informe"
-                checked={paso2.entrega_informe}
-                onChange={(v) => update2("entrega_informe", v)}
-              />
-              <Checkbox
-                label="Requerimiento"
-                checked={paso2.entrega_requerimiento}
-                onChange={(v) => update2("entrega_requerimiento", v)}
-              />
-            </div>
           </div>
 
           <div className="btn-row end" style={{ marginTop: 24 }}>

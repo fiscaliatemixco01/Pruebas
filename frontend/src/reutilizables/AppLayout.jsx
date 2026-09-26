@@ -1,21 +1,100 @@
+import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth, iniciales } from "../context/AuthContext";
-import logoFge from '../assets/FISCALIA_LOGO.png';
+import fiscaliaLogo from "../assets/FISCALIA_LOGO.png";
 import "./AppLayout.css";
 
+const ICONS = {
+  inicio: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 11.5 12 4l9 7.5" />
+      <path d="M5.5 10v9a1 1 0 0 0 1 1H10v-5.5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1V20h3.5a1 1 0 0 0 1-1v-9" />
+    </svg>
+  ),
+  nuevo: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z" />
+      <path d="M14 3v5h5" />
+      <path d="M12 12.5v5M9.5 15h5" />
+    </svg>
+  ),
+  personal: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="9" cy="8" r="3.2" />
+      <path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6" />
+      <path d="M16.5 5.5A3.2 3.2 0 0 1 17 11.9" />
+      <path d="M18.5 14.3c2 .6 3.5 2.7 3.5 5.2" />
+    </svg>
+  ),
+  expedientes: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 3h9l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z" />
+      <path d="M14 3v5h5" />
+      <path d="M8.5 13h7M8.5 16.5h7" />
+    </svg>
+  ),
+  estadisticas: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 12V3.6A8.4 8.4 0 1 1 3.6 12" />
+      <path d="M12 12 20.4 9.6A8.4 8.4 0 0 0 12 3.6Z" />
+    </svg>
+  ),
+  notificaciones: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 9a6 6 0 0 1 12 0c0 4.5 1.5 6 1.5 6h-15S6 13.5 6 9Z" />
+      <path d="M10 19a2 2 0 0 0 4 0" />
+    </svg>
+  ),
+  crearCuenta: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="9" cy="8" r="3.2" />
+      <path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6" />
+      <path d="M18 8v6M15 11h6" />
+    </svg>
+  ),
+  editar: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+    </svg>
+  ),
+  logout: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <path d="M16 17l5-5-5-5" />
+      <path d="M21 12H9" />
+    </svg>
+  ),
+  chevron: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="m9 6 6 6-6 6" />
+    </svg>
+  ),
+  menu: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 6h16M4 12h16M4 18h16" />
+    </svg>
+  ),
+};
+
 const NAV_ITEMS = [
-  { to: "/peticiones/nueva", label: "Registrar petición", roles: ["Administrador", "Receptor"] },
-  { to: "/peticiones/buscar", label: "Buscar", roles: ["Administrador", "Receptor", "Perito"] },
-  { to: "/peticiones/editar", label: "Editar", roles: ["Administrador", "Receptor"] },
-  { to: "/bitacora", label: "Bitácora", roles: ["Administrador"] },
-  { to: "/usuarios", label: "Usuarios", roles: ["Administrador"] },
+  { to: "/", label: "Inicio", icon: "inicio", end: true },
+  { to: "/peticiones/nueva", label: "Nuevo Registro", icon: "nuevo" },
+  { to: "/usuarios", label: "Personal", icon: "personal" },
+  { to: "/peticiones/buscar", label: "Expedientes", icon: "expedientes", expandable: true },
+  { to: "/peticiones/editar", label: "Editar petición", icon: "editar" },
+  { to: "/bitacora", label: "Bitácora", icon: "personal" },
+  { to: "/estadisticas", label: "Estadísticas", icon: "estadisticas" },
+  { to: "/notificaciones", label: "Notificaciones", icon: "notificaciones" },
+  { to: "/usuarios/crear-cuenta", label: "Crear cuenta", icon: "crearCuenta" },
 ];
 
 export default function AppLayout({ title, children }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
 
-  const visibleItems = NAV_ITEMS.filter((item) => item.roles.includes(user?.rol));
+  const visibleItems = NAV_ITEMS; // todas las vistas visibles; el filtrado por rol se define después
 
   async function handleLogout() {
     await logout();
@@ -24,33 +103,54 @@ export default function AppLayout({ title, children }) {
 
   return (
     <div className="shell">
-      <header className="shell-header">
-        <div className="shell-brand">
-          <img src={logoFge} alt="Fiscalía General del Estado de Morelos" className="shell-brand-shield" />
-        </div>
-        {title ? <h1 className="shell-title">{title}</h1> : <span />}
-        <div className="shell-avatar" title={user ? `${user.nombre} ${user.apellidos}` : ""}>
-          {iniciales(user)}
-        </div>
-      </header>
-
-      <div className="shell-body">
-        <nav className="shell-nav">
-          <div className="shell-nav-links">
-            {visibleItems.map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                className={({ isActive }) => "shell-nav-btn" + (isActive ? " is-active" : "")}
-              >
-                {item.label}
-              </NavLink>
-            ))}
+      <aside className={"sidebar" + (open ? " is-open" : "")}>
+        <div className="sidebar-brand">
+          <img src={fiscaliaLogo} alt="Escudo Fiscalía General del Estado de Morelos" className="sidebar-brand-icon" />
+          <div className="sidebar-brand-text">
+            <strong>Fiscalía General</strong>
+            <span>Estado de Morelos</span>
           </div>
-          <button type="button" className="shell-nav-btn shell-logout" onClick={handleLogout}>
-            Cerrar sesión
-          </button>
+        </div>
+
+        <nav className="sidebar-nav">
+          {visibleItems.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.end}
+              onClick={() => setOpen(false)}
+              className={({ isActive }) => "sidebar-link" + (isActive ? " is-active" : "")}
+            >
+              <span className="sidebar-link-icon">{ICONS[item.icon]}</span>
+              <span className="sidebar-link-label">{item.label}</span>
+              {item.expandable ? <span className="sidebar-link-chevron">{ICONS.chevron}</span> : null}
+            </NavLink>
+          ))}
         </nav>
+
+        <button type="button" className="sidebar-logout" onClick={handleLogout}>
+          <span className="sidebar-link-icon">{ICONS.logout}</span>
+          Cerrar Sesión
+        </button>
+      </aside>
+
+      {open ? <div className="sidebar-backdrop" onClick={() => setOpen(false)} /> : null}
+
+      <div className="shell-main">
+        <header className="shell-topbar">
+          <button
+            type="button"
+            className="shell-menu-btn"
+            aria-label="Abrir menú"
+            onClick={() => setOpen((v) => !v)}
+          >
+            {ICONS.menu}
+          </button>
+          {title ? <h1 className="shell-title">{title}</h1> : <span />}
+          <div className="shell-avatar" title={user ? `${user.nombre} ${user.apellidos}` : ""}>
+            {iniciales(user)}
+          </div>
+        </header>
 
         <main className="shell-content">{children}</main>
       </div>

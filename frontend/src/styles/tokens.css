@@ -1,5 +1,6 @@
 :root {
   /* Marca FGE Morelos */
+  --navy-950: #131b30;
   --navy-900: #1c2b4e;
   --navy-800: #223462;
   --navy-700: #2c4272;
@@ -58,3 +59,4 @@ a {
   outline: 2px solid var(--navy-700);
   outline-offset: 2px;
 }
+

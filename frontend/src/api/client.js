@@ -44,10 +44,33 @@ async function request(path, { method = "GET", body, params } = {}) {
   return data;
 }
 
+// Para subir archivos (multipart/form-data). No mandamos el header
+// Content-Type a mano: el navegador arma el boundary correcto solo si se lo
+// dejamos poner a él.
+async function requestForm(path, { method = "POST", formData } = {}) {
+  const url = `${BASE_URL}${path}`;
+  const res = await fetch(url, {
+    method,
+    credentials: "include",
+    body: formData,
+  });
+
+  const isJson = res.headers.get("content-type")?.includes("application/json");
+  const data = isJson ? await res.json().catch(() => null) : null;
+
+  if (!res.ok) {
+    const message = data?.message || `Error ${res.status} al llamar ${path}`;
+    throw new Error(message);
+  }
+
+  return data;
+}
+
 export const api = {
   get: (path, params) => request(path, { method: "GET", params }),
   post: (path, body) => request(path, { method: "POST", body }),
   put: (path, body) => request(path, { method: "PUT", body }),
   patch: (path, body) => request(path, { method: "PATCH", body }),
   del: (path) => request(path, { method: "DELETE" }),
+  postForm: (path, formData) => requestForm(path, { method: "POST", formData }),
 };
