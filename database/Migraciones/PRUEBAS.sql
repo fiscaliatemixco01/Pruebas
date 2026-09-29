@@ -1,18 +1,10 @@
--- Módulo 1: Autenticación por reconocimiento facial y bitácora
-
--- Tabla de roles 
+-- Tabla de roles
 CREATE TABLE roles (
     id SERIAL PRIMARY KEY,
     nom_rol VARCHAR(100) NOT NULL UNIQUE
 );
 
--- Tabla de datos biométricos  
-CREATE TABLE biometricos (
-    id SERIAL PRIMARY KEY,
-    vector BYTEA NOT NULL  
-);
-
--- Tabla de acciones 
+-- Tabla de acciones
 CREATE TABLE acciones (
     id SERIAL PRIMARY KEY,
     nom_accion VARCHAR(100) NOT NULL UNIQUE
@@ -24,36 +16,35 @@ CREATE TABLE usuarios (
     nombre VARCHAR(150) NOT NULL,
     correo VARCHAR(150) UNIQUE NOT NULL,
     rol_id INTEGER NOT NULL,
-    biom_id INTEGER UNIQUE,
+
+    -- Autenticación por correo
+    password_hash TEXT,
+    verificado BOOLEAN NOT NULL DEFAULT FALSE,
+    token_hash TEXT,
+    token_expira TIMESTAMPTZ,
 
     CONSTRAINT fk_usuarios_rol
-        FOREIGN KEY (rol_id) 
-        REFERENCES roles(id) 
-        ON DELETE RESTRICT,
-
-    CONSTRAINT fk_usuarios_biometrico
-        FOREIGN KEY (biom_id) 
-        REFERENCES biometricos(id) 
-        ON DELETE SET NULL
+        FOREIGN KEY (rol_id)
+        REFERENCES roles(id)
+        ON DELETE RESTRICT
 );
 
--- Tabla de bitácora 
+-- Tabla de bitácora
 CREATE TABLE bitacora (
     id SERIAL PRIMARY KEY,
     us_id INTEGER NOT NULL,
     acc_id INTEGER NOT NULL,
     pet_id BIGINT,  -- Referencia compatible con BIGSERIAL de Peticiones
-
-    fecha_hora TIMESTAMPTZ NOT NULL DEFAULT NOW(), 
+    fecha_hora TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
     CONSTRAINT fk_bitacora_usuario
-        FOREIGN KEY (us_id) 
-        REFERENCES usuarios(id) 
+        FOREIGN KEY (us_id)
+        REFERENCES usuarios(id)
         ON DELETE CASCADE,
 
     CONSTRAINT fk_bitacora_accion
-        FOREIGN KEY (acc_id) 
-        REFERENCES acciones(id) 
+        FOREIGN KEY (acc_id)
+        REFERENCES acciones(id)
         ON DELETE RESTRICT
 
     -- Descomentar si ambas BD se ejecutan en el mismo script:
@@ -63,18 +54,13 @@ CREATE TABLE bitacora (
     --     ON DELETE SET NULL
 );
 
-
 CREATE INDEX idx_bitacora_usuario_fecha ON bitacora(us_id, fecha_hora DESC);
 
-
+-- Datos iniciales
 INSERT INTO roles (nom_rol) VALUES
-  ('Administrador'),
-  ('Receptor'),
-  ('Perito');
-
-
-INSERT INTO usuarios (nombre, correo, rol_id) VALUES ('Prueba Admin', 'admin@test.com', 1);
-
+    ('Administrador'),
+    ('Receptor'),
+    ('Perito');
 
 INSERT INTO acciones (nom_accion) VALUES
     ('Inicio de sesión'),
@@ -84,9 +70,12 @@ INSERT INTO acciones (nom_accion) VALUES
     ('Crear usuario'),
     ('Actualizar usuario');
 
+-- Usuario administrador de prueba (sin contraseña todavía, ver nota abajo)
+INSERT INTO usuarios (nombre, correo, rol_id, verificado)
+VALUES ('Prueba Admin', 'admin@test.com', 1, TRUE);
 
+-- Verificar
 SELECT * FROM roles;
-SELECT * FROM materias;
 SELECT * FROM acciones;
-SELECT * FROM peticiones;
+SELECT * FROM usuarios;
 SELECT * FROM bitacora;
