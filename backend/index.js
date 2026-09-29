@@ -6,10 +6,9 @@ const estadisticasRoutes = require('./routes/estadisticas');
 const cors = require('cors');
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
-
 
 app.use(cors({
   origin: 'http://localhost:5173',
@@ -77,7 +76,6 @@ app.get('/api/peritos', async (req, res) => {
   }
 });
 
-
 // Lista de peticiones (usa la vista con nombres legibles)
 app.get('/api/peticiones', async (req, res) => {
   try {
@@ -115,9 +113,7 @@ app.get('/api/bitacora', async (req, res) => {
   }
 });
 
-
-
-// Crear una nueva petición
+// Crear una nueva petición (Soporta numero_llamado manual para FMAP/llamados manuales)
 app.post('/api/peticiones', async (req, res) => {
   const {
     llamado_id,
@@ -126,16 +122,26 @@ app.post('/api/peticiones', async (req, res) => {
     con_detenido,
     materia_id,
     numero_carpeta,
-    descripcion_solicitud
+    descripcion_solicitud,
+    numero_llamado // <-- Recibido desde el frontend si el folio es manual
   } = req.body;
 
   try {
     const resultado = await pool.query(
       `INSERT INTO peticiones
-        (llamado_id, receptor_id, nombre_ministerio_publico, con_detenido, materia_id, numero_carpeta, descripcion_solicitud)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+        (llamado_id, receptor_id, nombre_ministerio_publico, con_detenido, materia_id, numero_carpeta, descripcion_solicitud, numero_llamado)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
-      [llamado_id, receptor_id, nombre_ministerio_publico, con_detenido, materia_id, numero_carpeta, descripcion_solicitud]
+      [
+        llamado_id,
+        receptor_id,
+        nombre_ministerio_publico,
+        con_detenido,
+        materia_id,
+        numero_carpeta,
+        descripcion_solicitud,
+        numero_llamado || null // Pasa el valor o null si el trigger de PostgreSQL lo auto-genera
+      ]
     );
 
     const nuevaPeticion = resultado.rows[0];
