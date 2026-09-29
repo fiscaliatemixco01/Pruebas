@@ -116,3 +116,10 @@ CREATE TABLE verificaciones_correo (
     verificado BOOLEAN NOT NULL DEFAULT FALSE,
     creado_en TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+
+CREATE TABLE carpetas (
+    id SERIAL PRIMARY KEY,
+    numero_carpeta VARCHAR(50) NOT NULL UNIQUE,
+    activo BOOLEAN NOT NULL DEFAULT TRUE
+);
