@@ -86,7 +86,7 @@ const NAV_ITEMS = [
   { to: "/bitacora", label: "Bitácora", icon: "personal" },
   { to: "/estadisticas", label: "Estadísticas", icon: "estadisticas" },
   { to: "/notificaciones", label: "Notificaciones", icon: "notificaciones" },
-  { to: "/usuarios/crear-cuenta", label: "Crear cuenta", icon: "crearCuenta" },
+  { to: "/crear-cuenta", label: "Crear cuenta", icon: "crearCuenta" },
 ];
 
 export default function AppLayout({ title, children }) {
