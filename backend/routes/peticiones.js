@@ -22,8 +22,8 @@ router.get('/', async (req, res) => {
     condiciones.push(`nombre_perito ILIKE $${params.length}`);
   }
   if (numero_carpeta && numero_carpeta.trim()) {
-    params.push(`%${numero_carpeta.trim()}%`);
-    condiciones.push(`numero_carpeta ILIKE $${params.length}`);
+    params.push(numero_carpeta.trim());
+    condiciones.push(`LOWER(numero_carpeta) = LOWER($${params.length})`);
   }
   if (fecha && fecha.trim()) {
     params.push(fecha.trim());
