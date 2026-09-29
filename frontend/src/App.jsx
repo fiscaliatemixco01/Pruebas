@@ -14,6 +14,7 @@ import BuscarPeticion from "./paginas/BuscarPeticion";
 import EditarPeticion from "./paginas/EditarPeticion";
 import Bitacora from "./paginas/Bitacora";
 import Usuarios from "./paginas/Usuarios";
+import Carpetas from "./paginas/Carpetas";
 
 export default function App() {
   return (
@@ -76,6 +77,11 @@ export default function App() {
             <Estadisticas />
           </ProtectedRoute>
         }
+      />
+
+      <Route
+        path="/carpetas"
+        element={<ProtectedRoute><Carpetas /></ProtectedRoute>}
       />
 
       <Route

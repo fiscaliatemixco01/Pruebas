@@ -4,7 +4,7 @@ const pool = require('./db');
 const authRoutes = require('./routes/auth');
 const estadisticasRoutes = require('./routes/estadisticas'); 
 const cors = require('cors');
-
+const carpetasRoutes = require('./routes/carpetas');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -21,6 +21,7 @@ app.get('/', (req, res) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/estadisticas', estadisticasRoutes);
+app.use('/api/carpetas', carpetasRoutes);
 
 app.get('/api/usuarios', async (req, res) => {
   try {
