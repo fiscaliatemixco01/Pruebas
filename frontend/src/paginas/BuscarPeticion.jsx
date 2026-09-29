@@ -14,10 +14,19 @@ export default function BuscarPeticion() {
   }
 
   async function buscar(campo) {
+    const valor = (filtros[campo] || "").trim();
+
+    // Si el campo está vacío, no se consulta nada
+    if (!valor) {
+      setResultados(null);
+      setError("Escribe un dato en el campo antes de buscar.");
+      return;
+    }
+
     setError("");
     setLoading(true);
     try {
-      const data = await peticionesApi.buscar({ [campo]: filtros[campo] });
+      const data = await peticionesApi.buscar({ [campo]: valor });
       setResultados(data);
     } catch (err) {
       setError(err.message || "No se pudo completar la búsqueda.");
@@ -25,6 +34,11 @@ export default function BuscarPeticion() {
     } finally {
       setLoading(false);
     }
+  }
+
+  // "2026-09-29T06:00:00.000Z" -> "2026-09-29"
+  function formatearFecha(f) {
+    return f ? String(f).slice(0, 10) : "";
   }
 
   return (
@@ -96,7 +110,7 @@ export default function BuscarPeticion() {
                   </div>
                   <div>
                     <span className="label">Fecha</span>
-                    <span className="value">{r.fecha_recibido}</span>
+                    <span className="value">{formatearFecha(r.fecha_recibido)}</span>
                   </div>
                   <div>
                     <span className="label">Perito</span>
@@ -122,4 +136,3 @@ export default function BuscarPeticion() {
     </AppLayout>
   );
 }
-

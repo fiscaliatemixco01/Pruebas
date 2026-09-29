@@ -4,11 +4,11 @@ const pool = require('../db');
 
 const router = express.Router();
 
-// GET /api/peticiones?numero_llamado=&fecha=
+// GET /api/peticiones?numero_llamado=&perito=&fecha=&numero_carpeta=
 // Lista de peticiones (usa la vista con nombres legibles).
 // Los filtros son opcionales: si no se mandan, regresa todo como antes.
 router.get('/', async (req, res) => {
-  const { numero_llamado, fecha } = req.query;
+  const { numero_llamado, perito, fecha, numero_carpeta } = req.query;
 
   const condiciones = [];
   const params = [];
@@ -16,6 +16,14 @@ router.get('/', async (req, res) => {
   if (numero_llamado && numero_llamado.trim()) {
     params.push(`%${numero_llamado.trim()}%`);
     condiciones.push(`numero_llamado ILIKE $${params.length}`);
+  }
+  if (perito && perito.trim()) {
+    params.push(`%${perito.trim()}%`);
+    condiciones.push(`nombre_perito ILIKE $${params.length}`);
+  }
+  if (numero_carpeta && numero_carpeta.trim()) {
+    params.push(`%${numero_carpeta.trim()}%`);
+    condiciones.push(`numero_carpeta ILIKE $${params.length}`);
   }
   if (fecha && fecha.trim()) {
     params.push(fecha.trim());
