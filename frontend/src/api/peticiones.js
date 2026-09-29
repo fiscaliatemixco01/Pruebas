@@ -19,4 +19,5 @@ export const peticionesApi = {
   listarPeritos: () => api.get("/peritos"),
   listarMaterias: () => api.get("/materias"),
   listarLlamados: () => api.get("/llamados"),
+  listarAsignadas: () => api.get("/peticiones/asignadas"),
 };

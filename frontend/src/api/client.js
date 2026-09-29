@@ -1,20 +1,27 @@
 // ---------------------------------------------------------------------------
-// Cliente API central.
+// Cliente API central. Todas las funciones de src/api/*.js llaman a tu backend
+// Express, que es el que ejecuta las queries contra Postgres.
 //
-// Este proyecto NO habla directo con Postgres desde el navegador (eso nunca
-// es seguro). En su lugar, todas las funciones de aquí llaman a un backend
-// (Node/Express, Fastify, Django, lo que ya tengas) que es el que ejecuta las
-// queries contra tu base de datos Postgres.
-//
-// Configura la URL de tu API en un archivo `.env` en la raíz del proyecto:
-//   VITE_API_URL=http://localhost:3000/api
-//
-// Y expón en tu backend endpoints REST equivalentes a los que se listan en
-// cada archivo de src/api/*.js (peticiones.js, usuarios.js, bitacora.js,
-// auth.js). Todos regresan/reciben JSON.
+// URL de la API en `.env`:  VITE_API_URL=http://localhost:3000/api
 // ---------------------------------------------------------------------------
 
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
+const TOKEN_KEY = "token"; // debe coincidir con src/api/auth.js
+
+// Token JWT guardado al iniciar sesión, enviado como Bearer en cada petición.
+function authHeaders() {
+  const token = localStorage.getItem(TOKEN_KEY);
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+// El backend responde { error: "..." }; se acepta también { message: "..." }.
+function mensajeDeError(res, data, path) {
+  // Token vencido o inválido: se borra (el login mismo también responde 401 y no cuenta)
+  if (res.status === 401 && !path.startsWith("/auth/login")) {
+    localStorage.removeItem(TOKEN_KEY);
+  }
+  return data?.error || data?.message || `Error ${res.status} al llamar ${path}`;
+}
 
 async function request(path, { method = "GET", body, params } = {}) {
   let url = `${BASE_URL}${path}`;
@@ -28,8 +35,8 @@ async function request(path, { method = "GET", body, params } = {}) {
 
   const res = await fetch(url, {
     method,
-    headers: { "Content-Type": "application/json" },
-    credentials: "include", // manda la cookie de sesión si tu backend usa sesiones
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    credentials: "include",
     body: body ? JSON.stringify(body) : undefined,
   });
 
@@ -37,20 +44,18 @@ async function request(path, { method = "GET", body, params } = {}) {
   const data = isJson ? await res.json().catch(() => null) : null;
 
   if (!res.ok) {
-    const message = data?.message || `Error ${res.status} al llamar ${path}`;
-    throw new Error(message);
+    throw new Error(mensajeDeError(res, data, path));
   }
 
   return data;
 }
 
-// Para subir archivos (multipart/form-data). No mandamos el header
-// Content-Type a mano: el navegador arma el boundary correcto solo si se lo
-// dejamos poner a él.
+// Para subir archivos (multipart/form-data). No se pone Content-Type a mano:
+// el navegador arma el boundary correcto solo.
 async function requestForm(path, { method = "POST", formData } = {}) {
-  const url = `${BASE_URL}${path}`;
-  const res = await fetch(url, {
+  const res = await fetch(`${BASE_URL}${path}`, {
     method,
+    headers: authHeaders(),
     credentials: "include",
     body: formData,
   });
@@ -59,11 +64,25 @@ async function requestForm(path, { method = "POST", formData } = {}) {
   const data = isJson ? await res.json().catch(() => null) : null;
 
   if (!res.ok) {
-    const message = data?.message || `Error ${res.status} al llamar ${path}`;
-    throw new Error(message);
+    throw new Error(mensajeDeError(res, data, path));
   }
 
   return data;
+}
+
+// Para descargar archivos (PDF) con el token; un <a href> no manda el header.
+async function requestBlob(path) {
+  const res = await fetch(`${BASE_URL}${path}`, {
+    headers: authHeaders(),
+    credentials: "include",
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new Error(mensajeDeError(res, data, path));
+  }
+
+  return res.blob();
 }
 
 export const api = {
@@ -73,4 +92,5 @@ export const api = {
   patch: (path, body) => request(path, { method: "PATCH", body }),
   del: (path) => request(path, { method: "DELETE" }),
   postForm: (path, formData) => requestForm(path, { method: "POST", formData }),
+  getBlob: (path) => requestBlob(path),
 };

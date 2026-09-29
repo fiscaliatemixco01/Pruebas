@@ -1,14 +1,32 @@
+// routes/auth.js
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const pool = require('../db');
 const { enviarCorreoCodigo } = require('../mailer');
+const { verificarToken, requerirRol } = require('../middleware/auth');
 
 const router = express.Router();
+const ADMIN = 'Administrador';
 
-// Login por correo y contraseña
+// En la BD solo hay una columna "nombre" (nombre completo). El frontend espera
+// nombre + apellidos, así que se separa la primera palabra del resto.
+function datosUsuario(u) {
+  const [nombre = '', ...resto] = (u.nombre || '').trim().split(/\s+/);
+  return {
+    id: u.id,
+    nombre,
+    apellidos: resto.join(' '),
+    correo: u.correo,
+    rol: u.rol,
+    materia: u.materia || null,
+  };
+}
+
+// Login por correo y contraseña. El frontend manda el correo en el campo "usuario".
 router.post('/login', async (req, res) => {
-  const { correo, contrasena } = req.body;
+  const correo = req.body.correo || req.body.usuario;
+  const { contrasena } = req.body;
 
   if (!correo || !contrasena) {
     return res.status(400).json({ error: 'Correo y contraseña son obligatorios' });
@@ -16,9 +34,11 @@ router.post('/login', async (req, res) => {
 
   try {
     const resultado = await pool.query(
-      `SELECT u.id, u.nombre, u.correo, u.password_hash, u.verificado, r.nom_rol AS rol
+      `SELECT u.id, u.nombre, u.correo, u.password_hash, u.verificado,
+              r.nom_rol AS rol, m.nombre AS materia
        FROM usuarios u
        JOIN roles r ON r.id = u.rol_id
+       LEFT JOIN materias m ON m.id = u.materia_id
        WHERE u.correo = $1`,
       [correo]
     );
@@ -48,23 +68,38 @@ router.post('/login', async (req, res) => {
       { expiresIn: '8h' }
     );
 
-    res.json({
-      token,
-      usuario: {
-        id: usuario.id,
-        nombre: usuario.nombre,
-        correo: usuario.correo,
-        rol: usuario.rol,
-      },
-    });
+    res.json({ token, usuario: datosUsuario(usuario) });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Error al iniciar sesión' });
   }
 });
 
+// Usuario de la sesión actual (lo usa AuthContext al cargar la app)
+router.get('/me', verificarToken, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT u.id, u.nombre, u.correo, r.nom_rol AS rol, m.nombre AS materia
+       FROM usuarios u
+       JOIN roles r ON r.id = u.rol_id
+       LEFT JOIN materias m ON m.id = u.materia_id
+       WHERE u.id = $1`,
+      [req.usuario.id]
+    );
+    if (!rows[0]) {
+      return res.status(401).json({ error: 'Usuario no encontrado' });
+    }
+    res.json(datosUsuario(rows[0]));
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al consultar la sesión' });
+  }
+});
+
+// A partir de aquí: solo el administrador crea cuentas.
+
 // Genera un código, lo hashea, lo guarda y lo envía por correo
-router.post('/enviar-codigo', async (req, res) => {
+router.post('/enviar-codigo', verificarToken, requerirRol(ADMIN), async (req, res) => {
   const { correo } = req.body;
   if (!correo) {
     return res.status(400).json({ error: 'El correo es obligatorio' });
@@ -91,7 +126,7 @@ router.post('/enviar-codigo', async (req, res) => {
 });
 
 // Compara el código capturado contra el hash guardado más reciente
-router.post('/confirmar-codigo', async (req, res) => {
+router.post('/confirmar-codigo', verificarToken, requerirRol(ADMIN), async (req, res) => {
   const { correo, codigo } = req.body;
   if (!correo || !codigo) {
     return res.status(400).json({ error: 'Correo y código son obligatorios' });
@@ -127,7 +162,7 @@ router.post('/confirmar-codigo', async (req, res) => {
 });
 
 // Crea la cuenta definitiva, solo si el correo quedó verificado
-router.post('/registro', async (req, res) => {
+router.post('/registro', verificarToken, requerirRol(ADMIN), async (req, res) => {
   const { usuario, contrasena, nombre, apellidos, rol, materia } = req.body;
 
   try {
