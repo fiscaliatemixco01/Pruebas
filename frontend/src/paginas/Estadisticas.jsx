@@ -79,10 +79,13 @@ export default function Estadisticas() {
   return (
     <AppLayout title="Estadísticas">
       <div className="stats-toolbar">
+        {/* Sin placeholder: la única opción "Todas" es la manual (value "todas") */}
         <SelectField
           label="Materia"
-          placeholder="Todas"
-          options={[{ value: "todas", label: "Todas" }, ...materias.map((m) => ({ value: m.id, label: m.nombre }))]}
+          options={[
+            { value: "todas", label: "Todas" },
+            ...materias.map((m) => ({ value: m.id, label: m.nombre })),
+          ]}
           value={materiaId}
           onChange={(e) => setMateriaId(e.target.value)}
         />
