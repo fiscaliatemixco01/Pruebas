@@ -79,3 +79,40 @@ SELECT * FROM roles;
 SELECT * FROM acciones;
 SELECT * FROM usuarios;
 SELECT * FROM bitacora;
+
+
+
+
+ALTER TABLE peticiones ALTER COLUMN entrega_dictamen DROP NOT NULL;
+ALTER TABLE peticiones ALTER COLUMN entrega_informe DROP NOT NULL;
+
+
+SELECT column_name, is_nullable 
+FROM information_schema.columns 
+WHERE table_name = 'peticiones';
+
+
+ALTER TABLE peticiones ALTER COLUMN entrega_dictamen DROP NOT NULL;
+ALTER TABLE peticiones ALTER COLUMN entrega_informe DROP NOT NULL;
+-- Agrega aquí cualquier otra columna que se llene hasta una etapa posterior
+
+
+ALTER TABLE peticiones ALTER COLUMN entrega_dictamen DROP NOT NULL;
+ALTER TABLE peticiones ALTER COLUMN entrega_informe DROP NOT NULL;
+ALTER TABLE peticiones ALTER COLUMN entrega_requerimiento DROP NOT NULL;
+
+-- Nuevo rol
+INSERT INTO roles (nom_rol) VALUES ('Consulta');
+
+-- Relación perito -> materia
+ALTER TABLE usuarios ADD COLUMN materia_id INTEGER REFERENCES materias(id);
+
+-- Tabla de verificación de correo (independiente de usuarios)
+CREATE TABLE verificaciones_correo (
+    id SERIAL PRIMARY KEY,
+    correo VARCHAR(150) NOT NULL,
+    token_hash TEXT NOT NULL,
+    token_expira TIMESTAMPTZ NOT NULL,
+    verificado BOOLEAN NOT NULL DEFAULT FALSE,
+    creado_en TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
