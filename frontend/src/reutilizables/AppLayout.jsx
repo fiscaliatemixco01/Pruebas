@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth, iniciales } from "../context/AuthContext";
+import { puedeVer } from "../paginas/permisos";
 import fiscaliaLogo from "../assets/FISCALIA_LOGO.png";
 import "./AppLayout.css";
 
@@ -77,17 +78,18 @@ const ICONS = {
   ),
 };
 
+// "vista" debe coincidir con las claves de VISTAS en permisos.jsx
 const NAV_ITEMS = [
-  { to: "/", label: "Inicio", icon: "inicio", end: true },
-  { to: "/peticiones/nueva", label: "Nuevo Registro", icon: "nuevo" },
-  { to: "/usuarios", label: "Personal", icon: "personal" },
-  { to: "/peticiones/buscar", label: "Expedientes", icon: "expedientes", expandable: true },
-  { to: "/peticiones/editar", label: "Editar petición", icon: "editar" },
-  { to: "/bitacora", label: "Bitácora", icon: "personal" },
-  { to: "/estadisticas", label: "Estadísticas", icon: "estadisticas" },
-  { to: "/notificaciones", label: "Notificaciones", icon: "notificaciones" },
-  { to: "/crear-cuenta", label: "Crear cuenta", icon: "crearCuenta" },
-  { to: "/carpetas", label: "Carpetas", icon: "expedientes" },
+  { to: "/", label: "Inicio", icon: "inicio", end: true, vista: "inicio" },
+  { to: "/peticiones/nueva", label: "Nuevo Registro", icon: "nuevo", vista: "nuevoRegistro" },
+  { to: "/usuarios", label: "Personal", icon: "personal", vista: "usuarios" },
+  { to: "/peticiones/buscar", label: "Expedientes", icon: "expedientes", expandable: true, vista: "expedientes" },
+  { to: "/peticiones/editar", label: "Editar petición", icon: "editar", vista: "expedientes" },
+  { to: "/bitacora", label: "Bitácora", icon: "personal", vista: "bitacora" },
+  { to: "/estadisticas", label: "Estadísticas", icon: "estadisticas", vista: "estadisticas" },
+  { to: "/notificaciones", label: "Notificaciones", icon: "notificaciones", vista: "notificaciones" },
+  { to: "/crear-cuenta", label: "Crear cuenta", icon: "crearCuenta", vista: "usuarios" },
+  { to: "/carpetas", label: "Carpetas", icon: "expedientes", vista: "carpetas" },
 ];
 
 export default function AppLayout({ title, children }) {
@@ -95,7 +97,8 @@ export default function AppLayout({ title, children }) {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
 
-  const visibleItems = NAV_ITEMS; // todas las vistas visibles; el filtrado por rol se define después
+  // Solo se muestran las vistas permitidas para el rol del usuario
+  const visibleItems = NAV_ITEMS.filter((item) => puedeVer(user?.rol, item.vista));
 
   async function handleLogout() {
     await logout();
