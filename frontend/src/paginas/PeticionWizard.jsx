@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { peticionesApi } from "../api/peticiones";
 import { usuariosApi } from "../api/usuarios";
+import { carpetasApi } from "../api/carpetas";
 import { RadioGroup, SelectField, TextArea, TextField } from "../reutilizables/Field";
+
 
 const emptyPaso1 = {
   llamado_id: "",
@@ -12,7 +14,6 @@ const emptyPaso1 = {
   materia_id: "",
   numero_carpeta: "",
   descripcion_solicitud: "",
-  numero_llamado: ""
 };
 
 const emptyPaso2 = {
@@ -28,7 +29,8 @@ const emptyPaso2 = {
 export default function PeticionWizard({ mode = "nueva", initialData = null, onSaved }) {
   const esEdicion = mode === "editar";
 
-  // En edición mostramos todo en un solo formulario
+  // En edición mostramos todo en un solo formulario (fecha, hora, número de
+  // llamado y tipo de llamado quedan bloqueados; el resto es editable).
   const [step, setStep] = useState(esEdicion ? "editar" : 1);
   const [peticionId, setPeticionId] = useState(initialData?.id ?? null);
 
@@ -53,7 +55,6 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
         }
       : {}),
   });
-
   const [paso2, setPaso2] = useState({
     ...emptyPaso2,
     ...(initialData
@@ -68,6 +69,7 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
   const [peritos, setPeritos] = useState([]);
   const [llamados, setLlamados] = useState([]);
   const [usuarios, setUsuarios] = useState([]);
+  const [carpetas, setCarpetas] = useState([]);
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -78,6 +80,7 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
     peticionesApi.listarPeritos().then(setPeritos).catch(() => setPeritos([]));
     peticionesApi.listarLlamados().then(setLlamados).catch(() => setLlamados([]));
     usuariosApi.listar().then(setUsuarios).catch(() => setUsuarios([]));
+    carpetasApi.listar().then(setCarpetas).catch(() => setCarpetas([]));
   }, []);
 
   const llamadoSeleccionado = llamados.find((l) => String(l.id) === String(paso1.llamado_id));
@@ -90,11 +93,11 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
     value: l.id,
     label: l.es_automatico ? l.codigo : `${l.codigo} (captura manual)`,
   }));
+  const opcionesCarpetas = carpetas.map((c) => ({ value: c.numero_carpeta, label: c.numero_carpeta }));
 
   function update1(field, value) {
     setPaso1((p) => ({ ...p, [field]: value }));
   }
-  
   function update2(field, value) {
     setPaso2((p) => ({ ...p, [field]: value }));
   }
@@ -111,7 +114,7 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
       return "Llamado, receptor, nombre del MP, materia, número de carpeta y descripción son obligatorios.";
     }
     if (requiereNumeroManual && !paso1.numero_llamado_manual.trim()) {
-      return `Para el llamado ${llamadoSeleccionado?.codigo ?? ""} debes capturar el número de llamado manualmente.`;
+      return `Para el llamado ${llamadoSeleccionado.codigo} debes capturar el número de llamado manualmente.`;
     }
     return "";
   }
@@ -127,7 +130,6 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
     setLoading(true);
     try {
       if (!peticionId) {
-        // Registro nuevo (Paso 1)
         const creada = await peticionesApi.crear({
           llamado_id: paso1.llamado_id,
           numero_llamado: requiereNumeroManual ? paso1.numero_llamado_manual.trim() : undefined,
@@ -144,18 +146,6 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
           fecha_recibido: creada.fecha_recibido,
           hora_recibido: creada.hora_recibido,
           tipo_llamado: llamadoSeleccionado?.codigo ?? "",
-        });
-      } else if (!esEdicion) {
-        // En caso de que se haya regresado del Paso 2 al Paso 1 y se guarde nuevamente
-        await peticionesApi.actualizar?.(peticionId, {
-          llamado_id: paso1.llamado_id,
-          numero_llamado: requiereNumeroManual ? paso1.numero_llamado_manual.trim() : undefined,
-          receptor_id: paso1.receptor_id,
-          nombre_ministerio_publico: paso1.nombre_ministerio_publico,
-          con_detenido: paso1.con_detenido,
-          materia_id: paso1.materia_id,
-          numero_carpeta: paso1.numero_carpeta,
-          descripcion_solicitud: paso1.descripcion_solicitud,
         });
       }
       setStep(2);
@@ -185,6 +175,8 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
     }
   }
 
+  // Formulario único de edición: todo es editable salvo fecha, hora,
+  // número de llamado y tipo de llamado (van juntos y quedan bloqueados).
   async function handleGuardarEdicion(e) {
     e.preventDefault();
     setError("");
@@ -254,7 +246,7 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
               <RadioGroup
                 name="con_detenido"
                 value={paso1.con_detenido}
-                onChange={(v) => update1("con_detenido", v === true || v === "true")}
+                onChange={(v) => update1("con_detenido", v === "true")}
                 options={[
                   { value: true, label: "Con detenido" },
                   { value: false, label: "Sin detenido" },
@@ -267,8 +259,9 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
                 onChange={(e) => update1("materia_id", e.target.value)}
                 required
               />
-              <TextField
+              <SelectField
                 label="Número de carpeta"
+                options={opcionesCarpetas}
                 value={paso1.numero_carpeta}
                 onChange={(e) => update1("numero_carpeta", e.target.value)}
                 required
@@ -335,10 +328,10 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
               />
               {requiereNumeroManual && (
                 <TextField
-                  label={`Número de llamado (${llamadoSeleccionado?.codigo ?? ""}, captura manual)`}
+                  label={`Número de llamado (${llamadoSeleccionado.codigo}, captura manual)`}
                   value={paso1.numero_llamado_manual}
                   onChange={(e) => update1("numero_llamado_manual", e.target.value)}
-                  placeholder={`Ej. ${llamadoSeleccionado?.codigo ?? ""}001/26`}
+                  placeholder={`Ej. ${llamadoSeleccionado.codigo}001/26`}
                   required
                 />
               )}
@@ -358,7 +351,7 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
               <RadioGroup
                 name="con_detenido"
                 value={paso1.con_detenido}
-                onChange={(v) => update1("con_detenido", v === true || v === "true")}
+                onChange={(v) => update1("con_detenido", v === "true")}
                 options={[
                   { value: true, label: "Con detenido" },
                   { value: false, label: "Sin detenido" },
@@ -371,8 +364,9 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
                 onChange={(e) => update1("materia_id", e.target.value)}
                 required
               />
-              <TextField
+              <SelectField
                 label="Número de carpeta"
+                options={opcionesCarpetas}
                 value={paso1.numero_carpeta}
                 onChange={(e) => update1("numero_carpeta", e.target.value)}
                 required
