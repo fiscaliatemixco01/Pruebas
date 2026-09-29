@@ -6,8 +6,15 @@ const estadisticasRoutes = require('./routes/estadisticas');
 const cors = require('cors');
 const carpetasRoutes = require('./routes/carpetas');
 const peticionesRoutes = require('./routes/peticiones');
+const { verificarToken, requerirRol } = require('./middleware/auth');
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Nombres de rol: deben coincidir EXACTO con roles.nom_rol en la BD
+const ADMIN = 'Administrador';
+const PERITO = 'Perito';
+const RECEPTOR = 'Receptor';
+const CONSULTA = 'Consulta';
 
 app.use(express.json());
 
@@ -20,14 +27,51 @@ app.get('/', (req, res) => {
   res.send('Servidor funcionando');
 });
 
+// Login (público). Si aquí está el registro de cuentas, protégelo
+// dentro de routes/auth.js con verificarToken + requerirRol(ADMIN).
 app.use('/api/auth', authRoutes);
-app.use('/api/estadisticas', estadisticasRoutes);
-app.use('/api/carpetas', carpetasRoutes);
-app.use('/api/peticiones', peticionesRoutes);
 
-app.get('/api/usuarios', async (req, res) => {
+app.use('/api/estadisticas', verificarToken, requerirRol(ADMIN, CONSULTA), estadisticasRoutes);
+app.use('/api/carpetas', verificarToken, requerirRol(ADMIN, RECEPTOR), carpetasRoutes);
+
+// Notificaciones: peticiones asignadas al perito de la sesión (el administrador ve todas las asignadas).
+// Debe ir ANTES de app.use('/api/peticiones', ...) para que no lo capture una ruta '/:id'.
+// Requiere que vw_peticiones exponga perito_id.
+app.get('/api/peticiones/asignadas', verificarToken, requerirRol(ADMIN, PERITO), async (req, res) => {
   try {
-    const resultado = await pool.query('SELECT * FROM usuarios');
+    const esAdmin = req.usuario.rol === ADMIN;
+    const resultado = esAdmin
+      ? await pool.query(
+          `SELECT * FROM vw_peticiones
+            WHERE perito_id IS NOT NULL
+            ORDER BY fecha_recibido DESC, hora_recibido DESC`
+        )
+      : await pool.query(
+          `SELECT * FROM vw_peticiones
+            WHERE perito_id = $1
+            ORDER BY fecha_recibido DESC, hora_recibido DESC`,
+          [req.usuario.id]
+        );
+    res.json(resultado.rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al consultar las peticiones asignadas' });
+  }
+});
+
+// Aquí solo se exige sesión. Los roles por endpoint se definen dentro de
+// routes/peticiones.js con requerirRol (ver matriz en la respuesta).
+app.use('/api/peticiones', verificarToken, peticionesRoutes);
+
+// Solo administrador. Devuelve todas las columnas de usuarios (incluida la contraseña) más el nombre del rol.
+app.get('/api/usuarios', verificarToken, requerirRol(ADMIN), async (req, res) => {
+  try {
+    const resultado = await pool.query(
+      `SELECT u.*, r.nom_rol AS rol
+       FROM usuarios u
+       JOIN roles r ON r.id = u.rol_id
+       ORDER BY u.nombre`
+    );
     res.json(resultado.rows);
   } catch (error) {
     console.error(error);
@@ -36,7 +80,7 @@ app.get('/api/usuarios', async (req, res) => {
 });
 
 // Catálogo de materias
-app.get('/api/materias', async (req, res) => {
+app.get('/api/materias', verificarToken, requerirRol(ADMIN, RECEPTOR), async (req, res) => {
   try {
     const resultado = await pool.query(
       'SELECT id, nombre FROM materias WHERE activo = true ORDER BY nombre'
@@ -49,7 +93,7 @@ app.get('/api/materias', async (req, res) => {
 });
 
 // Catálogo de tipos de llamado
-app.get('/api/llamados', async (req, res) => {
+app.get('/api/llamados', verificarToken, requerirRol(ADMIN, RECEPTOR), async (req, res) => {
   try {
     const resultado = await pool.query(
       'SELECT id, codigo, es_automatico FROM llamados ORDER BY codigo'
@@ -62,7 +106,7 @@ app.get('/api/llamados', async (req, res) => {
 });
 
 // Usuarios con rol de Perito
-app.get('/api/peritos', async (req, res) => {
+app.get('/api/peritos', verificarToken, requerirRol(ADMIN, RECEPTOR), async (req, res) => {
   try {
     const resultado = await pool.query(
       `SELECT u.id, u.nombre, u.correo
@@ -70,7 +114,7 @@ app.get('/api/peritos', async (req, res) => {
        JOIN roles r ON r.id = u.rol_id
        WHERE r.nom_rol = $1
        ORDER BY u.nombre`,
-      ['Perito']
+      [PERITO]
     );
     res.json(resultado.rows);
   } catch (error) {
@@ -79,8 +123,8 @@ app.get('/api/peritos', async (req, res) => {
   }
 });
 
-// Bitácora de acciones
-app.get('/api/bitacora', async (req, res) => {
+// Bitácora de acciones (solo administrador)
+app.get('/api/bitacora', verificarToken, requerirRol(ADMIN), async (req, res) => {
   try {
     const resultado = await pool.query(
       `SELECT
