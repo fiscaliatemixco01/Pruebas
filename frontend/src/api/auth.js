@@ -11,4 +11,6 @@ export const authApi = {
   logout: () => api.post("/auth/logout"),
   me: () => api.get("/auth/me"),
   registrar: (payload) => api.post("/auth/registro", payload),
+  enviarCodigoVerificacion: (correo) => api.post("/auth/enviar-codigo", { correo }),
+  confirmarCodigoVerificacion: (correo, codigo) => api.post("/auth/confirmar-codigo", { correo, codigo }),
 };
