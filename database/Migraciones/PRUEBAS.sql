@@ -116,3 +116,5 @@ CREATE TABLE verificaciones_correo (
     verificado BOOLEAN NOT NULL DEFAULT FALSE,
     creado_en TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+
