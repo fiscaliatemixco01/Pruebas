@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import AppLayout from "../reutilizables/AppLayout";
 import { authApi } from "../api/auth";
+import { peticionesApi } from "../api/peticiones";
 import { SelectField, TextField } from "../reutilizables/Field";
 import "./Auth.css";
 
@@ -18,6 +19,10 @@ export default function CrearCuenta() {
     materia: "",
   });
 
+   // Catálogo de materias para el combo
+  const [materias, setMaterias] = useState([]);
+  const [cargandoMaterias, setCargandoMaterias] = useState(true);
+
   // Estado del correo verificado: "" -> nada enviado, "enviado" -> esperando
   // código, "verificado" -> ya se confirmó y se puede crear la cuenta.
   const [estadoVerificacion, setEstadoVerificacion] = useState("");
@@ -26,11 +31,24 @@ export default function CrearCuenta() {
   const [enviandoCodigo, setEnviandoCodigo] = useState(false);
   const [confirmandoCodigo, setConfirmandoCodigo] = useState(false);
   const [avisoVerificacion, setAvisoVerificacion] = useState("");
-
+ 
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-
+ 
+  useEffect(() => {
+    peticionesApi
+      .listarMaterias()
+      .then(setMaterias)
+      .catch(() => setMaterias([]))
+      .finally(() => setCargandoMaterias(false));
+  }, []);
+ 
+  // value = nombre para que el backend siga recibiendo `materia` como texto.
+  // Si prefieres mandar el id, cambia value a m.id y ajusta el backend.
+  const opcionesMaterias = materias.map((m) => ({ value: m.nombre, label: m.nombre }));
+ 
   const esPerito = form.rol === "Perito";
+ 
   function update(field, value) {
     setForm((f) => ({ ...f, [field]: value }));
     if (field === "usuario" && value !== correoVerificado) {
@@ -39,7 +57,16 @@ export default function CrearCuenta() {
       setCodigo("");
     }
   }
-
+ 
+  function handleRolChange(value) {
+    setForm((f) => ({
+      ...f,
+      rol: value,
+      // Si deja de ser perito, se limpia la materia
+      materia: value === "Perito" ? f.materia : "",
+    }));
+  }
+ 
   async function handleEnviarCodigo() {
     setAvisoVerificacion("");
     setError("");
@@ -58,7 +85,7 @@ export default function CrearCuenta() {
       setEnviandoCodigo(false);
     }
   }
-
+ 
   async function handleConfirmarCodigo() {
     setAvisoVerificacion("");
     if (!codigo.trim()) {
@@ -77,7 +104,7 @@ export default function CrearCuenta() {
       setConfirmandoCodigo(false);
     }
   }
-
+ 
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
@@ -103,7 +130,7 @@ export default function CrearCuenta() {
       setLoading(false);
     }
   }
-
+ 
   return (
     <AppLayout title="Crear cuenta">
       <div className="auth-card auth-card-wide" style={{ margin: "0 auto" }}>
@@ -111,10 +138,10 @@ export default function CrearCuenta() {
           <h1>Crear cuenta</h1>
           <p>REGISTRA LOS DATOS DEL NUEVO USUARIO</p>
         </div>
-
+ 
         <form className="auth-form" onSubmit={handleSubmit}>
           {error ? <div className="status-banner error">{error}</div> : null}
-
+ 
           <div>
             <TextField
               label="Usuario (correo)"
@@ -143,7 +170,7 @@ export default function CrearCuenta() {
                 </span>
               ) : null}
             </div>
-
+ 
             {estadoVerificacion === "enviado" ? (
               <div className="form-grid two-col" style={{ marginTop: 12, alignItems: "end" }}>
                 <TextField
@@ -164,14 +191,14 @@ export default function CrearCuenta() {
                 </button>
               </div>
             ) : null}
-
+ 
             {avisoVerificacion ? (
               <p className="field-hint" style={{ marginTop: 8 }}>
                 {avisoVerificacion}
               </p>
             ) : null}
           </div>
-
+ 
           <TextField
             label="Contraseña"
             type="password"
@@ -195,17 +222,22 @@ export default function CrearCuenta() {
             label="Rol"
             options={ROLES}
             value={form.rol}
-            onChange={(e) => update("rol", e.target.value)}
+            onChange={(e) => handleRolChange(e.target.value)}
             required
           />
-          <TextField
+          <SelectField
             label="Materia"
             hint="Llenar solo en caso de ser perito"
+            options={opcionesMaterias}
+            placeholder={
+              cargandoMaterias ? "Cargando materias..." : "Selecciona una materia..."
+            }
             value={form.materia}
             onChange={(e) => update("materia", e.target.value)}
-            disabled={!esPerito}
+            disabled={!esPerito || cargandoMaterias}
+            required={esPerito}
           />
-
+ 
           <div className="btn-row">
             <button
               className="btn btn-primary"
@@ -224,3 +256,4 @@ export default function CrearCuenta() {
     </AppLayout>
   );
 }
+
