@@ -1,10 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import AppLayout from "../reutilizables/AppLayout";
 import { carpetasApi } from "../api/carpetas";
 import { peticionesApi } from "../api/peticiones";
+import { useAuth } from "../context/AuthContext";
 
 export default function Carpetas() {
+  const { user } = useAuth();
+  const esAdmin = user?.rol === "Administrador";
+
   const [carpetas, setCarpetas] = useState([]);
   const [nuevaCarpeta, setNuevaCarpeta] = useState("");
   const [error, setError] = useState("");
@@ -68,7 +72,6 @@ export default function Carpetas() {
 
   function verContenido(carpeta) {
     if (seleccionada?.id === carpeta.id) {
-      // Click de nuevo sobre la misma carpeta: la cierra.
       setSeleccionada(null);
       setPeticiones([]);
       return;
@@ -88,21 +91,23 @@ export default function Carpetas() {
 
   return (
     <AppLayout title="Carpetas">
-      <form className="card" onSubmit={handleCrear}>
-        <div className="search-row" style={{ marginBottom: 0 }}>
-          <label>Número de carpeta:</label>
-          <input
-            className="field-input"
-            value={nuevaCarpeta}
-            onChange={(e) => setNuevaCarpeta(e.target.value)}
-            placeholder="Ej. 123/2026"
-            required
-          />
-          <button className="btn btn-primary" type="submit" disabled={guardando}>
-            {guardando ? "Guardando..." : "Agregar carpeta"}
-          </button>
-        </div>
-      </form>
+      {esAdmin && (
+        <form className="card" onSubmit={handleCrear}>
+          <div className="search-row" style={{ marginBottom: 0 }}>
+            <label>Número de carpeta:</label>
+            <input
+              className="field-input"
+              value={nuevaCarpeta}
+              onChange={(e) => setNuevaCarpeta(e.target.value)}
+              placeholder="Ej. 123/2026"
+              required
+            />
+            <button className="btn btn-primary" type="submit" disabled={guardando}>
+              {guardando ? "Guardando..." : "Agregar carpeta"}
+            </button>
+          </div>
+        </form>
+      )}
 
       {error ? <div className="status-banner error" style={{ marginTop: 16 }}>{error}</div> : null}
       {aviso ? <div className="status-banner success" style={{ marginTop: 16 }}>{aviso}</div> : null}
@@ -134,16 +139,18 @@ export default function Carpetas() {
                 >
                   <td>{c.numero_carpeta}</td>
                   <td style={{ textAlign: "right" }}>
-                    <button
-                      type="button"
-                      className="btn btn-secondary"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleEliminar(c.id);
-                      }}
-                    >
-                      Eliminar
-                    </button>
+                    {esAdmin && (
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEliminar(c.id);
+                        }}
+                      >
+                        Eliminar
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))
@@ -189,7 +196,7 @@ export default function Carpetas() {
                     </div>
                   </div>
                   <Link className="btn btn-secondary" to={`/peticiones/editar/${p.id}`}>
-                    Ver / editar
+                    {esAdmin ? "Ver / editar" : "Ver"}
                   </Link>
                 </div>
               ))}

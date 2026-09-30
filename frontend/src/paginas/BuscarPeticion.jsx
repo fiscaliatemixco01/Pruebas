@@ -2,8 +2,12 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import AppLayout from "../reutilizables/AppLayout";
 import { peticionesApi } from "../api/peticiones";
+import { useAuth } from "../context/AuthContext";
 
 export default function BuscarPeticion() {
+  const { user } = useAuth();
+  const esAdmin = user?.rol === "Administrador";
+
   const [filtros, setFiltros] = useState({ numero_llamado: "", perito: "", fecha: "", numero_carpeta: "" });
   const [resultados, setResultados] = useState(null);
   const [error, setError] = useState("");
@@ -16,7 +20,6 @@ export default function BuscarPeticion() {
   async function buscar(campo) {
     const valor = (filtros[campo] || "").trim();
 
-    // Si el campo está vacío, no se consulta nada
     if (!valor) {
       setResultados(null);
       setError("Escribe un dato en el campo antes de buscar.");
@@ -36,7 +39,6 @@ export default function BuscarPeticion() {
     }
   }
 
-  // "2026-09-29T06:00:00.000Z" -> "2026-09-29"
   function formatearFecha(f) {
     return f ? String(f).slice(0, 10) : "";
   }
@@ -126,7 +128,7 @@ export default function BuscarPeticion() {
                   </div>
                 </div>
                 <Link className="btn btn-secondary" to={`/peticiones/editar/${r.id}`}>
-                  Ver / editar
+                  {esAdmin ? "Ver / editar" : "Ver"}
                 </Link>
               </div>
             ))
