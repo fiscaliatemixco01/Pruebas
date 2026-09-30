@@ -64,7 +64,11 @@ async function notificarRoles(roles, excluirId, petId, tipo, mensaje) {
   }
 }
 
-// ---------- ASIGNADAS AL USUARIO LOGUEADO (debe ir ANTES de /:id) ----------
+// =====================================================================
+// RUTAS FIJAS: todas deben ir ANTES de cualquier ruta con "/:id"
+// =====================================================================
+
+// ---------- ASIGNADAS AL USUARIO LOGUEADO ----------
 router.get('/asignadas', requerirRol('Administrador', 'Perito'), async (req, res) => {
   try {
     const r = await pool.query(
@@ -96,6 +100,28 @@ router.get('/por-firmar', requerirRol('Administrador', 'Receptor'), async (req, 
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Error al consultar los llamados por firmar' });
+  }
+});
+
+// ---------- CONTEO PARA EL PUNTITO DEL MENÚ ----------
+router.get('/pendientes', requerirRol('Administrador', 'Receptor', 'Perito'), async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT
+         (SELECT COUNT(*)::int
+            FROM peticiones p
+            JOIN entregas e ON e.peticion_id = p.id
+           WHERE p.firmado_en IS NULL) AS por_firmar,
+         (SELECT COUNT(*)::int
+            FROM peticiones p
+           WHERE p.perito_id = $1
+             AND NOT EXISTS (SELECT 1 FROM entregas e WHERE e.peticion_id = p.id)) AS por_entregar`,
+      [req.usuario.id]
+    );
+    res.json(r.rows[0]);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al consultar los pendientes' });
   }
 });
 
@@ -140,6 +166,10 @@ router.get('/', requerirRol(...TODOS), async (req, res) => {
     res.status(500).json({ error: 'Error al consultar peticiones' });
   }
 });
+
+// =====================================================================
+// RUTAS CON "/:id"
+// =====================================================================
 
 // ---------- UNA petición (el perito solo si es suya) ----------
 router.get('/:id', requerirRol(...TODOS), async (req, res) => {
@@ -196,7 +226,7 @@ router.post('/', requerirRol('Administrador', 'Receptor'), async (req, res) => {
       return res.status(400).json({ error: `Esa materia no corresponde al llamado ${codigo}` });
     }
 
-     // Si viene perito, debe ser un usuario con rol Perito
+    // Si viene perito, debe ser un usuario con rol Perito
     const peritoFinal = perito_id === '' || perito_id === undefined || perito_id === null ? null : perito_id;
     if (peritoFinal !== null) {
       const pr = await pool.query(
@@ -293,15 +323,13 @@ router.put('/:id', requerirRol('Administrador', 'Receptor'), async (req, res) =>
         [req.usuario.id, id]
       );
 
-        await notificar([n(b.perito_id)], id, 'asignada',
+      await notificar([n(b.perito_id)], id, 'asignada',
         `Nueva petición ${r.rows[0].numero_llamado} asignada a ti`);
 
       return res.json(r.rows[0]);
     }
 
-
     const previa = await pool.query('SELECT perito_id FROM peticiones WHERE id = $1', [id]);
-
 
     // Administrador
     const resultado = await pool.query(
@@ -343,10 +371,10 @@ router.put('/:id', requerirRol('Administrador', 'Receptor'), async (req, res) =>
     );
 
     const nuevoPerito = resultado.rows[0].perito_id;
-      if (nuevoPerito && nuevoPerito !== previa.rows[0]?.perito_id) {
-        await notificar([nuevoPerito], id, 'asignada',
-          `Nueva petición ${resultado.rows[0].numero_llamado} asignada a ti`);
-      }
+    if (nuevoPerito && nuevoPerito !== previa.rows[0]?.perito_id) {
+      await notificar([nuevoPerito], id, 'asignada',
+        `Nueva petición ${resultado.rows[0].numero_llamado} asignada a ti`);
+    }
 
     res.json(resultado.rows[0]);
   } catch (error) {
@@ -372,7 +400,7 @@ router.post(
     if (!req.file) return res.status(400).json({ error: 'Adjunta un archivo PDF' });
     if (!COLUMNA_ENTREGA[tipo]) { borrar(); return res.status(400).json({ error: 'Tipo de entrega inválido' }); }
 
-     try {
+    try {
       const p = await pool.query(
         'SELECT perito_id, firmado_en, numero_llamado FROM peticiones WHERE id = $1',
         [id]
@@ -421,7 +449,7 @@ router.post(
       );
 
       res.status(201).json(guardada.rows[0]);
-       } catch (error) {
+    } catch (error) {
       borrar();
       console.error('ERROR ENTREGA:', error);
       res.status(500).json({ error: 'Error al guardar la entrega: ' + error.message });
@@ -487,9 +515,8 @@ router.post('/:id/firmar', requerirRol('Administrador', 'Receptor'), async (req,
 
   try {
     // 1) Verifica la contraseña del usuario de la sesión (el id sale del token)
-    //    AJUSTA el nombre de la columna si tu hash no se llama "contrasena"
-const u = await pool.query('SELECT password_hash FROM usuarios WHERE id = $1', [req.usuario.id]);
-const coincide = u.rows[0] && (await bcrypt.compare(contrasena, u.rows[0].password_hash));
+    const u = await pool.query('SELECT password_hash FROM usuarios WHERE id = $1', [req.usuario.id]);
+    const coincide = u.rows[0] && (await bcrypt.compare(contrasena, u.rows[0].password_hash));
     if (!coincide) {
       // 403 y no 401, para que el frontend no lo tome como sesión vencida
       return res.status(403).json({ error: 'Contraseña incorrecta' });
@@ -521,14 +548,14 @@ const coincide = u.rows[0] && (await bcrypt.compare(contrasena, u.rows[0].passwo
     );
     if (!r.rows[0]) return res.status(409).json({ error: 'Esta entrega ya fue firmada' });
 
-   await pool.query(
+    await pool.query(
       `INSERT INTO bitacora (us_id, acc_id, pet_id, fecha_hora)
-      VALUES ($1, 7, $2, NOW())`,
+       VALUES ($1, 7, $2, NOW())`,
       [req.usuario.id, id]
     );
 
     res.json(r.rows[0]);
-    } catch (error) {
+  } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Error al firmar: ' + error.message });
   }
