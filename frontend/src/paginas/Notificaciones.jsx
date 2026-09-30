@@ -24,7 +24,7 @@ export default function Notificaciones() {
       return;
     }
     peticionesApi
-      .listarAsignadas(user.id)
+      .listarAsignadas()
       .then(setPeticiones)
       .catch((err) => setError(err.message || "No se pudieron cargar tus peticiones asignadas."))
       .finally(() => setLoading(false));
@@ -94,7 +94,7 @@ export default function Notificaciones() {
                 </div>
                 <div>
                   <span className="label">Fecha</span>
-                  <span className="value">{r.fecha_recibido}</span>
+                  <span className="value">{String(r.fecha_recibido).slice(0, 10)}</span>
                 </div>
                 <div>
                   <span className="label">Materia</span>

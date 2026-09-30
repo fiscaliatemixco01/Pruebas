@@ -1,4 +1,4 @@
-// src/permisos.jsx  (muévelo fuera de /paginas: no es una página)
+// src/permisos.jsx
 
 export const ROLES = {
   ADMIN: "Administrador",
@@ -15,10 +15,13 @@ const { ADMIN, PERITO, RECEPTOR, CONSULTA } = ROLES;
   inicio          -> Home
   notificaciones  -> Notificaciones, PeticionPerito
   nuevoRegistro   -> NuevaPeticion
-  expedientes     -> BuscarPeticion, EditarPeticion
+  expedientes     -> BuscarPeticion
+  verPeticion     -> EditarPeticion (ruta /peticiones/editar/:id, sin ítem de menú)
+  editarPeticion  -> ítem de menú "Editar petición" (solo Administrador)
   carpetas        -> Carpetas
   estadisticas    -> Estadisticas
-  usuarios        -> Usuarios, CrearCuenta
+  usuarios        -> Usuarios
+  crearCuenta     -> CrearCuenta
   bitacora        -> Bitacora
 
   El Administrador está en todas.
@@ -28,9 +31,12 @@ export const VISTAS = {
   notificaciones: [ADMIN, PERITO],
   nuevoRegistro:  [ADMIN, RECEPTOR],
   expedientes:    [ADMIN, RECEPTOR],
+  verPeticion:    [ADMIN, RECEPTOR, PERITO, CONSULTA],
+  editarPeticion: [ADMIN],
   carpetas:       [ADMIN, RECEPTOR],
   estadisticas:   [ADMIN, CONSULTA],
   usuarios:       [ADMIN],
+  crearCuenta:    [ADMIN],
   bitacora:       [ADMIN],
 };
 
@@ -38,15 +44,17 @@ export function puedeVer(rol, vista) {
   return !!rol && !!VISTAS[vista]?.includes(rol);
 }
 
-// Ítems del menú lateral / navbar. Ajusta textos si hace falta.
+// Ítems del menú lateral / navbar.
 const MENU = [
   { vista: "inicio",         ruta: "/",                   texto: "Inicio" },
   { vista: "notificaciones", ruta: "/notificaciones",     texto: "Notificaciones" },
   { vista: "nuevoRegistro",  ruta: "/peticiones/nueva",   texto: "Nuevo registro" },
   { vista: "expedientes",    ruta: "/peticiones/buscar",  texto: "Expedientes" },
+  { vista: "editarPeticion", ruta: "/peticiones/editar",  texto: "Editar petición" },
   { vista: "carpetas",       ruta: "/carpetas",           texto: "Carpetas" },
   { vista: "estadisticas",   ruta: "/estadisticas",       texto: "Estadísticas" },
   { vista: "usuarios",       ruta: "/usuarios",           texto: "Usuarios" },
+  { vista: "crearCuenta",    ruta: "/crear-cuenta",       texto: "Crear cuenta" },
   { vista: "bitacora",       ruta: "/bitacora",           texto: "Bitácora" },
 ];
 

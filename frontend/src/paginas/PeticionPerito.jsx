@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import AppLayout from "../reutilizables/AppLayout";
 import { peticionesApi } from "../api/peticiones";
 import { SelectField } from "../reutilizables/Field";
@@ -10,9 +10,11 @@ const TIPOS = [
   { value: "requerimiento", label: "Requerimiento" },
 ];
 
+const fmtFecha = (f) => (f ? String(f).slice(0, 10) : "");
+const fmtHora = (h) => (h ? String(h).slice(0, 8) : "");
+
 export default function PeticionPerito() {
   const { id } = useParams();
-  const navigate = useNavigate();
 
   const [peticion, setPeticion] = useState(null);
   const [entrega, setEntrega] = useState(null);
@@ -68,11 +70,22 @@ export default function PeticionPerito() {
       const guardada = await peticionesApi.subirEntrega(id, { tipo, archivo });
       setEntrega(guardada);
       setArchivo(null);
+      e.target.reset?.();
       setAviso("Entrega subida correctamente.");
     } catch (err) {
       setError(err.message || "No se pudo subir la entrega.");
     } finally {
       setSubiendo(false);
+    }
+  }
+
+  async function handleVerPdf() {
+    setError("");
+    try {
+      const blob = await peticionesApi.descargarEntrega(id);
+      window.open(URL.createObjectURL(blob), "_blank");
+    } catch (err) {
+      setError(err.message || "No se pudo abrir el PDF.");
     }
   }
 
@@ -99,11 +112,11 @@ export default function PeticionPerito() {
             <div className="detalle-grid">
               <div>
                 <span className="label">Fecha recibido</span>
-                <span className="value">{peticion.fecha_recibido}</span>
+                <span className="value">{fmtFecha(peticion.fecha_recibido)}</span>
               </div>
               <div>
                 <span className="label">Hora recibido</span>
-                <span className="value">{peticion.hora_recibido}</span>
+                <span className="value">{fmtHora(peticion.hora_recibido)}</span>
               </div>
               <div>
                 <span className="label">Materia</span>
@@ -143,14 +156,9 @@ export default function PeticionPerito() {
                   {entrega.archivo_nombre} · subido el{" "}
                   {new Date(entrega.subido_en).toLocaleString("es-MX")}
                 </span>
-                <a
-                  className="btn btn-secondary"
-                  href={`${import.meta.env.VITE_API_URL || "http://localhost:4000/api"}/peticiones/${id}/entrega/archivo`}
-                  target="_blank"
-                  rel="noreferrer"
-                >
+                <button type="button" className="btn btn-secondary" onClick={handleVerPdf}>
                   Ver PDF
-                </a>
+                </button>
               </div>
             ) : (
               <div className="btn-row" style={{ marginBottom: 20 }}>

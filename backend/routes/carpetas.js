@@ -1,10 +1,16 @@
 const express = require('express');
 const pool = require('../db');
+const { verificarToken, requerirRol } = require('../middleware/auth');
 
 const router = express.Router();
 
-// Catálogo de carpetas activas
-router.get('/', async (req, res) => {
+// Todas las rutas exigen sesión
+router.use(verificarToken);
+
+const TODOS = ['Administrador', 'Receptor', 'Perito', 'Consulta'];
+
+// Catálogo de carpetas activas (todos los roles pueden verlo)
+router.get('/', requerirRol(...TODOS), async (req, res) => {
   try {
     const resultado = await pool.query(
       'SELECT id, numero_carpeta FROM carpetas WHERE activo = true ORDER BY numero_carpeta'
@@ -16,8 +22,8 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Crear carpeta nueva
-router.post('/', async (req, res) => {
+// Crear carpeta nueva (solo Administrador)
+router.post('/', requerirRol('Administrador'), async (req, res) => {
   const { numero_carpeta } = req.body;
   if (!numero_carpeta || !numero_carpeta.trim()) {
     return res.status(400).json({ error: 'El número de carpeta es obligatorio' });
@@ -39,9 +45,14 @@ router.post('/', async (req, res) => {
   }
 });
 
-// Baja lógica
-router.delete('/:id', async (req, res) => {
+// Baja lógica (solo Administrador)
+router.delete('/:id', requerirRol('Administrador'), async (req, res) => {
   const { id } = req.params;
+
+  if (!/^\d+$/.test(id)) {
+    return res.status(400).json({ error: 'Id de carpeta inválido' });
+  }
+
   try {
     const resultado = await pool.query(
       `UPDATE carpetas SET activo = false WHERE id = $1 RETURNING id`,

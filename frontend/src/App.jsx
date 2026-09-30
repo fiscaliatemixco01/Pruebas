@@ -5,7 +5,6 @@ import ProtectedRoute from "./reutilizables/ProtectedRoute";
 import Estadisticas from "./paginas/Estadisticas";
 import Notificaciones from "./paginas/Notificaciones";
 import PeticionPerito from "./paginas/PeticionPerito";
-// import ComingSoon from "./paginas/ComingSoon";
 import Login from "./paginas/login";
 import CrearCuenta from "./paginas/CrearCuenta";
 import Home from "./paginas/Home";
@@ -40,13 +39,18 @@ export default function App() {
           path="/peticiones/buscar"
           element={<ProtectedRoute roles={VISTAS.expedientes}><BuscarPeticion /></ProtectedRoute>}
         />
+
+        {/* Buscar para editar: solo Administrador */}
         <Route
           path="/peticiones/editar"
-          element={<ProtectedRoute roles={VISTAS.expedientes}><EditarPeticion /></ProtectedRoute>}
+          element={<ProtectedRoute roles={VISTAS.editarPeticion}><EditarPeticion /></ProtectedRoute>}
         />
+
+        {/* Ficha de una petición: todos los roles (solo lectura salvo Administrador;
+            el Perito además sube su PDF, y el backend limita a sus asignadas) */}
         <Route
           path="/peticiones/editar/:id"
-          element={<ProtectedRoute roles={VISTAS.expedientes}><EditarPeticion /></ProtectedRoute>}
+          element={<ProtectedRoute roles={VISTAS.verPeticion}><EditarPeticion /></ProtectedRoute>}
         />
 
         {/* Carpetas: Administrador, Receptor */}
@@ -66,7 +70,6 @@ export default function App() {
           path="/notificaciones"
           element={<ProtectedRoute roles={VISTAS.notificaciones}><Notificaciones /></ProtectedRoute>}
         />
-        {/* Antes era /peticiones/perito sin :id, y PeticionPerito usa useParams().id */}
         <Route
           path="/peticiones/perito/:id"
           element={<ProtectedRoute roles={VISTAS.notificaciones}><PeticionPerito /></ProtectedRoute>}
@@ -79,7 +82,7 @@ export default function App() {
         />
         <Route
           path="/crear-cuenta"
-          element={<ProtectedRoute roles={VISTAS.usuarios}><CrearCuenta /></ProtectedRoute>}
+          element={<ProtectedRoute roles={VISTAS.crearCuenta}><CrearCuenta /></ProtectedRoute>}
         />
         <Route
           path="/bitacora"

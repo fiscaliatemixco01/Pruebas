@@ -84,11 +84,11 @@ const NAV_ITEMS = [
   { to: "/peticiones/nueva", label: "Nuevo Registro", icon: "nuevo", vista: "nuevoRegistro" },
   { to: "/usuarios", label: "Personal", icon: "personal", vista: "usuarios" },
   { to: "/peticiones/buscar", label: "Expedientes", icon: "expedientes", expandable: true, vista: "expedientes" },
-  { to: "/peticiones/editar", label: "Editar petición", icon: "editar", vista: "expedientes" },
+  { to: "/peticiones/editar", label: "Editar petición", icon: "editar", vista: "editarPeticion" },
   { to: "/bitacora", label: "Bitácora", icon: "personal", vista: "bitacora" },
   { to: "/estadisticas", label: "Estadísticas", icon: "estadisticas", vista: "estadisticas" },
   { to: "/notificaciones", label: "Notificaciones", icon: "notificaciones", vista: "notificaciones" },
-  { to: "/crear-cuenta", label: "Crear cuenta", icon: "crearCuenta", vista: "usuarios" },
+  { to: "/crear-cuenta", label: "Crear cuenta", icon: "crearCuenta", vista: "crearCuenta" },
   { to: "/carpetas", label: "Carpetas", icon: "expedientes", vista: "carpetas" },
 ];
 

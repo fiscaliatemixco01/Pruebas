@@ -2,12 +2,12 @@ import { useEffect, useState } from "react";
 import { peticionesApi } from "../api/peticiones";
 import { usuariosApi } from "../api/usuarios";
 import { carpetasApi } from "../api/carpetas";
+import { useAuth } from "../context/AuthContext";
 import { RadioGroup, SelectField, TextArea, TextField } from "../reutilizables/Field";
-
 
 const emptyPaso1 = {
   llamado_id: "",
-  numero_llamado_manual: "", // solo se usa para llamados manuales (FMG / FMAP)
+  numero_llamado_manual: "",
   receptor_id: "",
   nombre_ministerio_publico: "",
   con_detenido: false,
@@ -28,9 +28,10 @@ const emptyPaso2 = {
  */
 export default function PeticionWizard({ mode = "nueva", initialData = null, onSaved }) {
   const esEdicion = mode === "editar";
+  const { user } = useAuth();
+  // En edición, solo el Administrador puede modificar
+  const soloLectura = esEdicion && user?.rol !== "Administrador";
 
-  // En edición mostramos todo en un solo formulario (fecha, hora, número de
-  // llamado y tipo de llamado quedan bloqueados; el resto es editable).
   const [step, setStep] = useState(esEdicion ? "editar" : 1);
   const [peticionId, setPeticionId] = useState(initialData?.id ?? null);
 
@@ -86,7 +87,7 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
   const llamadoSeleccionado = llamados.find((l) => String(l.id) === String(paso1.llamado_id));
   const requiereNumeroManual = llamadoSeleccionado ? !llamadoSeleccionado.es_automatico : false;
 
-  const opcionesUsuarios = usuarios.map((u) => ({ value: u.id, label: `${u.nombre} ${u.apellidos}` }));
+  const opcionesUsuarios = usuarios.map((u) => ({value: u.id,label: [u.nombre, u.apellidos].filter(Boolean).join(" "),}));
   const opcionesMaterias = materias.map((m) => ({ value: m.id, label: m.nombre }));
   const opcionesPeritos = peritos.map((p) => ({ value: p.id, label: p.nombre }));
   const opcionesLlamados = llamados.map((l) => ({
@@ -175,10 +176,9 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
     }
   }
 
-  // Formulario único de edición: todo es editable salvo fecha, hora,
-  // número de llamado y tipo de llamado (van juntos y quedan bloqueados).
   async function handleGuardarEdicion(e) {
     e.preventDefault();
+    if (soloLectura) return;
     setError("");
     setSuccess("");
     const msg = validarPaso1();
@@ -222,82 +222,86 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
         {success ? <div className="status-banner success">{success}</div> : null}
 
         <form className="card" onSubmit={handleGuardarEdicion}>
-          {bloqueDatosLlamado}
+          <fieldset disabled={soloLectura} style={{ border: 0, padding: 0, margin: 0 }}>
+            {bloqueDatosLlamado}
 
-          <div className="form-grid two-col" style={{ marginBottom: 24 }}>
-            <TextField label="Tipo de llamado" value={meta.tipo_llamado} readOnly disabled className="field-readonly" />
-          </div>
+            <div className="form-grid two-col" style={{ marginBottom: 24 }}>
+              <TextField label="Tipo de llamado" value={meta.tipo_llamado} readOnly disabled className="field-readonly" />
+            </div>
 
-          <div className="form-grid">
-            <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-              <SelectField
-                label="Nombre de receptor"
-                options={opcionesUsuarios}
-                value={paso1.receptor_id}
-                onChange={(e) => update1("receptor_id", e.target.value)}
-                required
-              />
-              <TextField
-                label="Nombre de MP"
-                value={paso1.nombre_ministerio_publico}
-                onChange={(e) => update1("nombre_ministerio_publico", e.target.value)}
-                required
-              />
-              <RadioGroup
-                name="con_detenido"
-                value={paso1.con_detenido}
-                onChange={(v) => update1("con_detenido", v === "true")}
-                options={[
-                  { value: true, label: "Con detenido" },
-                  { value: false, label: "Sin detenido" },
-                ]}
-              />
-              <SelectField
-                label="Materia"
-                options={opcionesMaterias}
-                value={paso1.materia_id}
-                onChange={(e) => update1("materia_id", e.target.value)}
-                required
-              />
-              <SelectField
-                label="Número de carpeta"
-                options={opcionesCarpetas}
-                value={paso1.numero_carpeta}
-                onChange={(e) => update1("numero_carpeta", e.target.value)}
+            <div className="form-grid">
+              <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                <SelectField
+                  label="Nombre de receptor"
+                  options={opcionesUsuarios}
+                  value={paso1.receptor_id}
+                  onChange={(e) => update1("receptor_id", e.target.value)}
+                  required
+                />
+                <TextField
+                  label="Nombre de MP"
+                  value={paso1.nombre_ministerio_publico}
+                  onChange={(e) => update1("nombre_ministerio_publico", e.target.value)}
+                  required
+                />
+                <RadioGroup
+                  name="con_detenido"
+                  value={paso1.con_detenido}
+                  onChange={(v) => update1("con_detenido", v === "true")}
+                  options={[
+                    { value: true, label: "Con detenido" },
+                    { value: false, label: "Sin detenido" },
+                  ]}
+                />
+                <SelectField
+                  label="Materia"
+                  options={opcionesMaterias}
+                  value={paso1.materia_id}
+                  onChange={(e) => update1("materia_id", e.target.value)}
+                  required
+                />
+                <SelectField
+                  label="Número de carpeta"
+                  options={opcionesCarpetas}
+                  value={paso1.numero_carpeta}
+                  onChange={(e) => update1("numero_carpeta", e.target.value)}
+                  required
+                />
+              </div>
+
+              <TextArea
+                label="Descripción de lo que solicita el MP"
+                value={paso1.descripcion_solicitud}
+                onChange={(e) => update1("descripcion_solicitud", e.target.value)}
                 required
               />
             </div>
 
-            <TextArea
-              label="Descripción de lo que solicita el MP"
-              value={paso1.descripcion_solicitud}
-              onChange={(e) => update1("descripcion_solicitud", e.target.value)}
-              required
-            />
-          </div>
+            <div className="form-grid two-col" style={{ marginTop: 24 }}>
+              <SelectField
+                label="Asignar perito"
+                options={opcionesPeritos}
+                placeholder="Selecciona un perito..."
+                value={paso2.perito_id}
+                onChange={(e) => update2("perito_id", e.target.value)}
+              />
+              <SelectField
+                label="Nombre del que recibe (entrega)"
+                options={opcionesUsuarios}
+                placeholder="Selecciona..."
+                value={paso2.quien_recibe_id}
+                onChange={(e) => update2("quien_recibe_id", e.target.value)}
+              />
+            </div>
+          </fieldset>
 
-          <div className="form-grid two-col" style={{ marginTop: 24 }}>
-            <SelectField
-              label="Asignar perito"
-              options={opcionesPeritos}
-              placeholder="Selecciona un perito..."
-              value={paso2.perito_id}
-              onChange={(e) => update2("perito_id", e.target.value)}
-            />
-            <SelectField
-              label="Nombre del que recibe (entrega)"
-              options={opcionesUsuarios}
-              placeholder="Selecciona..."
-              value={paso2.quien_recibe_id}
-              onChange={(e) => update2("quien_recibe_id", e.target.value)}
-            />
-          </div>
-
-          <div className="btn-row end" style={{ marginTop: 24 }}>
-            <button className="btn btn-primary" type="submit" disabled={loading}>
-              {loading ? "Guardando..." : "Guardar cambios"}
-            </button>
-          </div>
+          {!soloLectura && (
+            <div className="btn-row end" style={{ marginTop: 24 }}>
+              <button className="btn btn-primary" type="submit" disabled={loading}>
+                {loading ? "Guardando..." : "Guardar cambios"}
+              </button>
+            </div>
+          )}
         </form>
       </div>
     );
