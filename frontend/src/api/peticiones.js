@@ -9,7 +9,8 @@ export const peticionesApi = {
   listarMaterias: (llamadoId) => api.get("/materias", llamadoId ? { llamado_id: llamadoId } : undefined),
   listarLlamados: () => api.get("/llamados"),
   listarAsignadas: () => api.get("/peticiones/asignadas"),
- 
+  porFirmar: () => api.get("/peticiones/por-firmar"),
+
   // Entrega (PDF) de una petición
   obtenerEntrega: (id) => api.get(`/peticiones/${id}/entrega`),
   subirEntrega: (id, { tipo, archivo }) => {

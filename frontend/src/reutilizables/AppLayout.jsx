@@ -2,6 +2,7 @@ import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth, iniciales } from "../context/AuthContext";
 import { puedeVer } from "../paginas/permisos";
+import NotificacionesBell from "../reutilizables/NotificacionesBell";
 import fiscaliaLogo from "../assets/FISCALIA_LOGO.png";
 import "./AppLayout.css";
 
@@ -84,6 +85,7 @@ const NAV_ITEMS = [
   { to: "/peticiones/nueva", label: "Nuevo Registro", icon: "nuevo", vista: "nuevoRegistro" },
   { to: "/usuarios", label: "Personal", icon: "personal", vista: "usuarios" },
   { to: "/peticiones/buscar", label: "Expedientes", icon: "expedientes", expandable: true, vista: "expedientes" },
+  { to: "/por-firmar", label: "Por Firmar", icon: "expedientes", vista: "porFirmar" },
   { to: "/peticiones/editar", label: "Editar petición", icon: "editar", vista: "editarPeticion" },
   { to: "/bitacora", label: "Bitácora", icon: "personal", vista: "bitacora" },
   { to: "/estadisticas", label: "Estadísticas", icon: "estadisticas", vista: "estadisticas" },
@@ -151,8 +153,14 @@ export default function AppLayout({ title, children }) {
             {ICONS.menu}
           </button>
           {title ? <h1 className="shell-title">{title}</h1> : <span />}
-          <div className="shell-avatar" title={user ? `${user.nombre} ${user.apellidos}` : ""}>
-            {iniciales(user)}
+
+          <div className="shell-topbar-actions" style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            {/* Componente de la Campana de Notificaciones */}
+            <NotificacionesBell usuario={user} />
+
+            <div className="shell-avatar" title={user ? `${user.nombre} ${user.apellidos}` : ""}>
+              {iniciales(user)}
+            </div>
           </div>
         </header>
 

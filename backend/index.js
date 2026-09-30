@@ -39,6 +39,8 @@ app.use('/api/estadisticas', verificarToken, requerirRol(ADMIN, CONSULTA), estad
 app.use('/api/carpetas', verificarToken, carpetasRoutes);
 app.use('/api/peticiones', verificarToken, peticionesRoutes);
 
+app.use('/api/notificaciones', require('./routes/notificaciones'));
+
 // Catálogo de tipos de llamado (AGREGADO NUEVAMENTE)
 app.get('/api/llamados', verificarToken, requerirRol(...TODOS), async (req, res) => {
   try {

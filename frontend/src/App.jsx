@@ -15,6 +15,7 @@ import Bitacora from "./paginas/Bitacora";
 import Usuarios from "./paginas/Usuarios";
 import Carpetas from "./paginas/Carpetas";
 import { VISTAS } from "./paginas/permisos";
+import PorFirmar from "./paginas/PorFirmar";
 
 export default function App() {
   return (
@@ -87,6 +88,15 @@ export default function App() {
         <Route
           path="/bitacora"
           element={<ProtectedRoute roles={VISTAS.bitacora}><Bitacora /></ProtectedRoute>}
+        />
+
+        <Route 
+          path="/por-firmar" 
+          element={
+            <ProtectedRoute roles={VISTAS.porFirmar}>
+              <PorFirmar />
+            </ProtectedRoute>
+          } 
         />
 
         <Route path="*" element={<Navigate to="/" replace />} />
