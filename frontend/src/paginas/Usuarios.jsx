@@ -12,6 +12,7 @@ export default function Usuarios() {
   const [nuevaContrasena, setNuevaContrasena] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [aviso, setAviso] = useState("");
+  const [avisoEsError, setAvisoEsError] = useState(false);
 
   useEffect(() => {
     cargar();
@@ -26,6 +27,11 @@ export default function Usuarios() {
       .finally(() => setLoading(false));
   }
 
+  function mostrarAviso(texto, esError = false) {
+    setAviso(texto);
+    setAvisoEsError(esError);
+  }
+
   function iniciarCambioContrasena(id) {
     setAviso("");
     setEditandoId(id);
@@ -37,34 +43,37 @@ export default function Usuarios() {
     setNuevaContrasena("");
   }
 
-  async function guardarContrasena(id) {
-    if (!nuevaContrasena || nuevaContrasena.length < 6) {
-      setAviso("La nueva contraseña debe tener al menos 6 caracteres.");
-      return;
-    }
-    setGuardando(true);
-    setAviso("");
-    try {
-      await usuariosApi.cambiarContrasena(id, nuevaContrasena);
-      setAviso("Contraseña actualizada correctamente.");
-      cancelarCambioContrasena();
-    } catch (err) {
-      setAviso(err.message || "No se pudo actualizar la contraseña.");
-    } finally {
-      setGuardando(false);
-    }
+async function guardarContrasena(id) {
+  if (!nuevaContrasena || nuevaContrasena.length < 8) {
+    mostrarAviso("La nueva contraseña debe tener al menos 8 caracteres.", true);
+    return;
   }
+  setGuardando(true);
+  setAviso("");
+  try {
+    // Se envía como OBJETO { id, nuevaContrasena }
+    await usuariosApi.cambiarContrasena({ id, nuevaContrasena });
+    mostrarAviso("Contraseña actualizada correctamente.");
+    cancelarCambioContrasena();
+  } catch (err) {
+    mostrarAviso(err.message || "No se pudo actualizar la contraseña.", true);
+  } finally {
+    setGuardando(false);
+  }
+}
 
   return (
     <AppLayout title="Personal">
       <div className="btn-row" style={{ justifyContent: "flex-end", marginBottom: 16 }}>
-        <Link className="btn btn-primary" to="/usuarios/crear-cuenta">
+        <Link className="btn btn-primary" to="/crear-cuenta">
           Crear cuenta
         </Link>
       </div>
 
       {error ? <div className="status-banner error">{error}</div> : null}
-      {aviso ? <div className="status-banner success">{aviso}</div> : null}
+      {aviso ? (
+        <div className={"status-banner " + (avisoEsError ? "error" : "success")}>{aviso}</div>
+      ) : null}
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
         <table className="table">
@@ -89,7 +98,7 @@ export default function Usuarios() {
             ) : (
               usuarios.map((u, i) => (
                 <tr key={u.id ?? i}>
-                  <td>{u.nombre} {u.apellidos}</td>
+                  <td>{[u.nombre, u.apellidos].filter(Boolean).join(" ")}</td>
                   <td>{u.rol}</td>
                   <td>{u.materia || "—"}</td>
                   <td>{u.correo || "—"}</td>
@@ -110,7 +119,7 @@ export default function Usuarios() {
                           disabled={guardando}
                           onClick={() => guardarContrasena(u.id)}
                         >
-                          Guardar
+                          {guardando ? "Guardando..." : "Guardar"}
                         </button>
                         <button type="button" className="btn btn-secondary" onClick={cancelarCambioContrasena}>
                           Cancelar

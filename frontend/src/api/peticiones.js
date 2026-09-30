@@ -6,7 +6,7 @@ export const peticionesApi = {
   obtener: (id) => api.get(`/peticiones/${id}`),
   buscar: (filtros) => api.get("/peticiones", filtros),
   listarPeritos: () => api.get("/peritos"),
-  listarMaterias: () => api.get("/materias"),
+  listarMaterias: (llamadoId) => api.get("/materias", llamadoId ? { llamado_id: llamadoId } : undefined),
   listarLlamados: () => api.get("/llamados"),
   listarAsignadas: () => api.get("/peticiones/asignadas"),
 

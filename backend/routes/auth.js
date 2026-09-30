@@ -1,5 +1,5 @@
-// routes/auth.js
 const express = require('express');
+const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const pool = require('../db');
@@ -9,8 +9,8 @@ const { verificarToken, requerirRol } = require('../middleware/auth');
 const router = express.Router();
 const ADMIN = 'Administrador';
 
-// En la BD solo hay una columna "nombre" (nombre completo). El frontend espera
-// nombre + apellidos, así que se separa la primera palabra del resto.
+const normalizarCorreo = (c) => String(c || '').trim().toLowerCase();
+
 function datosUsuario(u) {
   const [nombre = '', ...resto] = (u.nombre || '').trim().split(/\s+/);
   return {
@@ -23,9 +23,9 @@ function datosUsuario(u) {
   };
 }
 
-// Login por correo y contraseña. El frontend manda el correo en el campo "usuario".
+// Login por correo y contraseña
 router.post('/login', async (req, res) => {
-  const correo = req.body.correo || req.body.usuario;
+  const correo = normalizarCorreo(req.body.correo || req.body.usuario);
   const { contrasena } = req.body;
 
   if (!correo || !contrasena) {
@@ -39,7 +39,7 @@ router.post('/login', async (req, res) => {
        FROM usuarios u
        JOIN roles r ON r.id = u.rol_id
        LEFT JOIN materias m ON m.id = u.materia_id
-       WHERE u.correo = $1`,
+       WHERE LOWER(u.correo) = $1`,
       [correo]
     );
 
@@ -75,7 +75,7 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// Usuario de la sesión actual (lo usa AuthContext al cargar la app)
+// Usuario de la sesión actual
 router.get('/me', verificarToken, async (req, res) => {
   try {
     const { rows } = await pool.query(
@@ -86,9 +86,11 @@ router.get('/me', verificarToken, async (req, res) => {
        WHERE u.id = $1`,
       [req.usuario.id]
     );
+
     if (!rows[0]) {
       return res.status(401).json({ error: 'Usuario no encontrado' });
     }
+
     res.json(datosUsuario(rows[0]));
   } catch (error) {
     console.error(error);
@@ -96,17 +98,59 @@ router.get('/me', verificarToken, async (req, res) => {
   }
 });
 
+// Cambiar contraseña del usuario autenticado
+router.put('/cambiar-contrasena', verificarToken, async (req, res) => {
+  const { contrasenaActual, nuevaContrasena } = req.body;
+  const usuarioId = req.usuario.id;
+
+  if (!contrasenaActual || !nuevaContrasena) {
+    return res.status(400).json({ error: 'La contraseña actual y la nueva son obligatorias' });
+  }
+
+  if (String(nuevaContrasena).length < 8) {
+    return res.status(400).json({ error: 'La nueva contraseña debe tener al menos 8 caracteres' });
+  }
+
+  try {
+    const result = await pool.query('SELECT password_hash FROM usuarios WHERE id = $1', [usuarioId]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    const coincide = await bcrypt.compare(contrasenaActual, result.rows[0].password_hash);
+    if (!coincide) {
+      return res.status(400).json({ error: 'La contraseña actual es incorrecta' });
+    }
+
+    const nuevoHash = await bcrypt.hash(nuevaContrasena, 10);
+    await pool.query('UPDATE usuarios SET password_hash = $1 WHERE id = $2', [nuevoHash, usuarioId]);
+
+    res.json({ mensaje: 'Contraseña actualizada correctamente' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al cambiar la contraseña' });
+  }
+});
+
 // A partir de aquí: solo el administrador crea cuentas.
 
-// Genera un código, lo hashea, lo guarda y lo envía por correo
+// Generar y enviar código de verificación por correo
 router.post('/enviar-codigo', verificarToken, requerirRol(ADMIN), async (req, res) => {
-  const { correo } = req.body;
+  const correo = normalizarCorreo(req.body.correo);
   if (!correo) {
     return res.status(400).json({ error: 'El correo es obligatorio' });
   }
 
   try {
-    const codigo = Math.floor(100000 + Math.random() * 900000).toString();
+    const existe = await pool.query(
+      'SELECT 1 FROM usuarios WHERE LOWER(correo) = $1',
+      [correo]
+    );
+    if (existe.rows.length > 0) {
+      return res.status(409).json({ error: 'Ya existe una cuenta con ese correo' });
+    }
+
+    const codigo = crypto.randomInt(100000, 1000000).toString();
     const tokenHash = await bcrypt.hash(codigo, 10);
     const tokenExpira = new Date(Date.now() + 10 * 60 * 1000); // 10 minutos
 
@@ -125,9 +169,11 @@ router.post('/enviar-codigo', verificarToken, requerirRol(ADMIN), async (req, re
   }
 });
 
-// Compara el código capturado contra el hash guardado más reciente
+// Confirmar código de verificación
 router.post('/confirmar-codigo', verificarToken, requerirRol(ADMIN), async (req, res) => {
-  const { correo, codigo } = req.body;
+  const correo = normalizarCorreo(req.body.correo);
+  const { codigo } = req.body;
+
   if (!correo || !codigo) {
     return res.status(400).json({ error: 'Correo y código son obligatorios' });
   }
@@ -144,7 +190,7 @@ router.post('/confirmar-codigo', verificarToken, requerirRol(ADMIN), async (req,
       return res.status(400).json({ error: 'Código expirado o no solicitado' });
     }
 
-    const coincide = await bcrypt.compare(codigo, resultado.rows[0].token_hash);
+    const coincide = await bcrypt.compare(String(codigo), resultado.rows[0].token_hash);
     if (!coincide) {
       return res.status(400).json({ error: 'Código incorrecto' });
     }
@@ -161,35 +207,54 @@ router.post('/confirmar-codigo', verificarToken, requerirRol(ADMIN), async (req,
   }
 });
 
-// Crea la cuenta definitiva, solo si el correo quedó verificado
+// Crear la cuenta si el correo fue verificado
 router.post('/registro', verificarToken, requerirRol(ADMIN), async (req, res) => {
-  const { usuario, contrasena, nombre, apellidos, rol, materia } = req.body;
+  const { contrasena, nombre, apellidos, rol, materia } = req.body;
+  const correo = normalizarCorreo(req.body.usuario || req.body.correo);
+
+  if (!correo || !contrasena || !nombre || !apellidos || !rol) {
+    return res.status(400).json({
+      error: 'Correo/Usuario, contraseña, nombre, apellidos y rol son obligatorios',
+    });
+  }
+
+  if (String(contrasena).length < 8) {
+    return res.status(400).json({ error: 'La contraseña debe tener al menos 8 caracteres' });
+  }
+
+  const client = await pool.connect();
 
   try {
-    const verificado = await pool.query(
+    await client.query('BEGIN');
+
+    const verificado = await client.query(
       `SELECT id FROM verificaciones_correo
        WHERE correo = $1 AND verificado = true
        ORDER BY creado_en DESC LIMIT 1`,
-      [usuario]
+      [correo]
     );
+
     if (verificado.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(400).json({ error: 'El correo no ha sido verificado' });
     }
 
-    const rolResultado = await pool.query(`SELECT id FROM roles WHERE nom_rol = $1`, [rol]);
+    const rolResultado = await client.query(`SELECT id FROM roles WHERE nom_rol = $1`, [rol]);
     if (rolResultado.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(400).json({ error: 'Rol no válido' });
     }
     const rolId = rolResultado.rows[0].id;
 
-    const esPerito = rol === 'Perito';
     let materiaId = null;
-    if (esPerito) {
+    if (rol === 'Perito') {
       if (!materia) {
+        await client.query('ROLLBACK');
         return res.status(400).json({ error: 'La materia es obligatoria para el rol de perito' });
       }
-      const materiaResultado = await pool.query(`SELECT id FROM materias WHERE nombre = $1`, [materia]);
+      const materiaResultado = await client.query(`SELECT id FROM materias WHERE nombre = $1`, [materia]);
       if (materiaResultado.rows.length === 0) {
+        await client.query('ROLLBACK');
         return res.status(400).json({ error: 'Materia no válida' });
       }
       materiaId = materiaResultado.rows[0].id;
@@ -198,17 +263,59 @@ router.post('/registro', verificarToken, requerirRol(ADMIN), async (req, res) =>
     const nombreCompleto = `${nombre} ${apellidos}`.trim();
     const passwordHash = await bcrypt.hash(contrasena, 10);
 
-    const nuevoUsuario = await pool.query(
+    const nuevoUsuario = await client.query(
       `INSERT INTO usuarios (nombre, correo, rol_id, password_hash, verificado, materia_id)
        VALUES ($1, $2, $3, $4, TRUE, $5)
        RETURNING id, nombre, correo`,
-      [nombreCompleto, usuario, rolId, passwordHash, materiaId]
+      [nombreCompleto, correo, rolId, passwordHash, materiaId]
     );
 
+    await client.query('DELETE FROM verificaciones_correo WHERE correo = $1', [correo]);
+
+    await client.query(
+      `INSERT INTO bitacora (us_id, acc_id)
+       VALUES ($1, (SELECT id FROM acciones WHERE nom_accion = 'Crear usuario'))`,
+      [req.usuario.id]
+    ).catch((e) => console.error('Error en Bitácora:', e.message));
+
+    await client.query('COMMIT');
     res.status(201).json(nuevoUsuario.rows[0]);
   } catch (error) {
+    await client.query('ROLLBACK');
+    if (error.code === '23505') {
+      return res.status(409).json({ error: 'Ya existe una cuenta con ese correo' });
+    }
     console.error(error);
     res.status(500).json({ error: 'No se pudo crear la cuenta' });
+  } finally {
+    client.release();
+  }
+});
+
+// Permite que un Administrador cambie la contraseña de cualquier usuario sin pedir la contraseña actual
+router.put('/admin/cambiar-contrasena', verificarToken, requerirRol(ADMIN), async (req, res) => {
+  const { id, nuevaContrasena } = req.body;
+
+  if (!id || !nuevaContrasena) {
+    return res.status(400).json({ error: 'El id y la nueva contraseña son obligatorios' });
+  }
+
+  if (String(nuevaContrasena).length < 8) {
+    return res.status(400).json({ error: 'La contraseña debe tener al menos 8 caracteres' });
+  }
+
+  try {
+    const nuevoHash = await bcrypt.hash(nuevaContrasena, 10);
+    const resultado = await pool.query('UPDATE usuarios SET password_hash = $1 WHERE id = $2', [nuevoHash, id]);
+
+    if (resultado.rowCount === 0) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    res.json({ mensaje: 'Contraseña actualizada correctamente por el Administrador' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al cambiar la contraseña' });
   }
 });
 

@@ -8,3 +8,16 @@ CREATE TABLE IF NOT EXISTS entregas (
   subido_por     INTEGER NOT NULL REFERENCES usuarios(id),
   subido_en      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+UPDATE usuarios
+   SET password_hash = crypt('1234', gen_salt('bf', 10)),
+       verificado    = TRUE
+ WHERE correo = 'admin@test.com';
+
+-- Comprobar
+SELECT id, nombre, correo, rol_id, verificado, password_hash IS NOT NULL AS tiene_password
+  FROM usuarios
+ WHERE correo = 'admin@test.com';

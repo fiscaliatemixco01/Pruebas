@@ -7,6 +7,7 @@ const cors = require('cors');
 const carpetasRoutes = require('./routes/carpetas');
 const peticionesRoutes = require('./routes/peticiones');
 const { verificarToken, requerirRol } = require('./middleware/auth');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -20,7 +21,7 @@ const TODOS = [ADMIN, RECEPTOR, PERITO, CONSULTA];
 app.use(express.json());
 
 app.use(cors({
-  origin: 'http://localhost:5173',
+  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
   credentials: true
 }));
 
@@ -28,73 +29,18 @@ app.get('/', (req, res) => {
   res.send('Servidor funcionando');
 });
 
-// Login (público). Si aquí está el registro de cuentas, protégelo
-// dentro de routes/auth.js con verificarToken + requerirRol(ADMIN).
+// Login y registro (los permisos de cada endpoint se definen en routes/auth.js)
 app.use('/api/auth', authRoutes);
 
 app.use('/api/estadisticas', verificarToken, requerirRol(ADMIN, CONSULTA), estadisticasRoutes);
-app.use('/api/carpetas', verificarToken, requerirRol(ADMIN, RECEPTOR), carpetasRoutes);
 
-// Notificaciones: peticiones asignadas al perito de la sesión (el administrador ve todas las asignadas).
-// Debe ir ANTES de app.use('/api/peticiones', ...) para que no lo capture una ruta '/:id'.
-// Requiere que vw_peticiones exponga perito_id.
-app.get('/api/peticiones/asignadas', verificarToken, requerirRol(ADMIN, PERITO), async (req, res) => {
-  try {
-    const esAdmin = req.usuario.rol === ADMIN;
-    const resultado = esAdmin
-      ? await pool.query(
-          `SELECT * FROM vw_peticiones
-            WHERE perito_id IS NOT NULL
-            ORDER BY fecha_recibido DESC, hora_recibido DESC`
-        )
-      : await pool.query(
-          `SELECT * FROM vw_peticiones
-            WHERE perito_id = $1
-            ORDER BY fecha_recibido DESC, hora_recibido DESC`,
-          [req.usuario.id]
-        );
-    res.json(resultado.rows);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Error al consultar las peticiones asignadas' });
-  }
-});
-
-// Aquí solo se exige sesión. Los roles por endpoint se definen dentro de
-// routes/peticiones.js con requerirRol (ver matriz en la respuesta).
+// Los roles de cada endpoint se definen dentro de routes/carpetas.js y routes/peticiones.js
+// (incluye /api/peticiones/asignadas, que vive en routes/peticiones.js)
+app.use('/api/carpetas', verificarToken, carpetasRoutes);
 app.use('/api/peticiones', verificarToken, peticionesRoutes);
 
-// Solo administrador. Devuelve todas las columnas de usuarios (incluida la contraseña) más el nombre del rol.
-app.get('/api/usuarios', verificarToken, requerirRol(ADMIN), async (req, res) => {
-  try {
-    const resultado = await pool.query(
-      `SELECT u.*, r.nom_rol AS rol
-       FROM usuarios u
-       JOIN roles r ON r.id = u.rol_id
-       ORDER BY u.nombre`
-    );
-    res.json(resultado.rows);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Error al consultar usuarios' });
-  }
-});
-
-// Catálogo de materias
-app.get('/api/materias', verificarToken, requerirRol(...TODOS), async (req, res) =>{
-  try {
-    const resultado = await pool.query(
-      'SELECT id, nombre FROM materias WHERE activo = true ORDER BY nombre'
-    );
-    res.json(resultado.rows);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Error al consultar materias' });
-  }
-});
-
-// Catálogo de tipos de llamado
-app.get('/api/llamados', verificarToken, requerirRol(ADMIN, RECEPTOR), async (req, res) => {
+// Catálogo de tipos de llamado (AGREGADO NUEVAMENTE)
+app.get('/api/llamados', verificarToken, requerirRol(...TODOS), async (req, res) => {
   try {
     const resultado = await pool.query(
       'SELECT id, codigo, es_automatico FROM llamados ORDER BY codigo'
@@ -106,15 +52,60 @@ app.get('/api/llamados', verificarToken, requerirRol(ADMIN, RECEPTOR), async (re
   }
 });
 
+// Usuarios. Administrador y Receptor (el wizard necesita la lista para los selects).
+// Sin password_hash ni tokens.
+app.get('/api/usuarios', verificarToken, requerirRol(ADMIN, RECEPTOR), async (req, res) => {
+  try {
+    const resultado = await pool.query(
+      `SELECT u.id, u.nombre, u.correo, u.rol_id, u.verificado, u.materia_id,
+              r.nom_rol AS rol, m.nombre AS materia
+         FROM usuarios u
+         JOIN roles r ON r.id = u.rol_id
+         LEFT JOIN materias m ON m.id = u.materia_id
+        ORDER BY u.nombre`
+    );
+    res.json(resultado.rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al consultar usuarios' });
+  }
+});
+
+// Catálogo de materias. Con ?llamado_id=X devuelve solo las de ese llamado
+// (si el llamado no tiene materias configuradas, devuelve todas).
+app.get('/api/materias', verificarToken, requerirRol(...TODOS), async (req, res) => {
+  const { llamado_id } = req.query;
+  try {
+    if (llamado_id && /^\d+$/.test(llamado_id)) {
+      const filtradas = await pool.query(
+        `SELECT m.id, m.nombre
+           FROM materias m
+           JOIN llamado_materias lm ON lm.materia_id = m.id
+          WHERE m.activo = true AND lm.llamado_id = $1
+          ORDER BY m.nombre`,
+        [llamado_id]
+      );
+      if (filtradas.rows.length > 0) return res.json(filtradas.rows);
+    }
+    const todas = await pool.query(
+      'SELECT id, nombre FROM materias WHERE activo = true ORDER BY nombre'
+    );
+    res.json(todas.rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al consultar materias' });
+  }
+});
+
 // Usuarios con rol de Perito
 app.get('/api/peritos', verificarToken, requerirRol(ADMIN, RECEPTOR), async (req, res) => {
   try {
     const resultado = await pool.query(
       `SELECT u.id, u.nombre, u.correo
-       FROM usuarios u
-       JOIN roles r ON r.id = u.rol_id
-       WHERE r.nom_rol = $1
-       ORDER BY u.nombre`,
+         FROM usuarios u
+         JOIN roles r ON r.id = u.rol_id
+        WHERE r.nom_rol = $1
+        ORDER BY u.nombre`,
       [PERITO]
     );
     res.json(resultado.rows);

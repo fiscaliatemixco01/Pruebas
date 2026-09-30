@@ -8,6 +8,8 @@ import { RadioGroup, SelectField, TextArea, TextField } from "../reutilizables/F
 const emptyPaso1 = {
   llamado_id: "",
   numero_llamado_manual: "",
+  zona_apoyo: "", // FMAP: "ZO" o "JO"
+  numero_apoyo: "", // FMAP: solo dígitos
   receptor_id: "",
   nombre_ministerio_publico: "",
   con_detenido: false,
@@ -19,6 +21,19 @@ const emptyPaso1 = {
 const emptyPaso2 = {
   perito_id: "",
   quien_recibe_id: "",
+};
+
+const OPCIONES_ZONA = [
+  { value: "ZO", label: "Cuautla (ZO)" },
+  { value: "JO", label: "Jojutla (JO)" },
+];
+
+// "2026-09-29T06:00:00.000Z" -> "2026-09-29" ; "13:01:28.411176" -> "13:01:28"
+const fmt = (v) => {
+  if (typeof v !== "string") return v;
+  if (/^\d{4}-\d{2}-\d{2}T/.test(v)) return v.slice(0, 10);
+  if (/^\d{2}:\d{2}:\d{2}/.test(v)) return v.slice(0, 8);
+  return v;
 };
 
 /**
@@ -76,18 +91,39 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // Catálogos que no dependen de nada
   useEffect(() => {
-    peticionesApi.listarMaterias().then(setMaterias).catch(() => setMaterias([]));
     peticionesApi.listarPeritos().then(setPeritos).catch(() => setPeritos([]));
     peticionesApi.listarLlamados().then(setLlamados).catch(() => setLlamados([]));
     usuariosApi.listar().then(setUsuarios).catch(() => setUsuarios([]));
     carpetasApi.listar().then(setCarpetas).catch(() => setCarpetas([]));
   }, []);
 
+  // Materias: solo las del llamado seleccionado
+  useEffect(() => {
+    if (!paso1.llamado_id) {
+      setMaterias([]);
+      return;
+    }
+    peticionesApi
+      .listarMaterias(paso1.llamado_id)
+      .then(setMaterias)
+      .catch(() => setMaterias([]));
+  }, [paso1.llamado_id]);
+
   const llamadoSeleccionado = llamados.find((l) => String(l.id) === String(paso1.llamado_id));
   const requiereNumeroManual = llamadoSeleccionado ? !llamadoSeleccionado.es_automatico : false;
+  const esApoyo = llamadoSeleccionado?.codigo === "FMAP";
+  const numeroManual = esApoyo
+    ? `${paso1.zona_apoyo}/${paso1.numero_apoyo.trim()}`
+    : paso1.numero_llamado_manual.trim();
+  const etiquetaNumero =
+    esApoyo || meta.tipo_llamado === "FMAP" ? "Número de apoyo" : "Número de llamado";
 
-  const opcionesUsuarios = usuarios.map((u) => ({value: u.id,label: [u.nombre, u.apellidos].filter(Boolean).join(" "),}));
+  const opcionesUsuarios = usuarios.map((u) => ({
+    value: u.id,
+    label: [u.nombre, u.apellidos].filter(Boolean).join(" "),
+  }));
   const opcionesMaterias = materias.map((m) => ({ value: m.id, label: m.nombre }));
   const opcionesPeritos = peritos.map((p) => ({ value: p.id, label: p.nombre }));
   const opcionesLlamados = llamados.map((l) => ({
@@ -114,8 +150,15 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
     ) {
       return "Llamado, receptor, nombre del MP, materia, número de carpeta y descripción son obligatorios.";
     }
-    if (requiereNumeroManual && !paso1.numero_llamado_manual.trim()) {
-      return `Para el llamado ${llamadoSeleccionado.codigo} debes capturar el número de llamado manualmente.`;
+    // El número manual solo se captura al crear, no al editar
+    if (!esEdicion && requiereNumeroManual) {
+      if (esApoyo) {
+        if (!paso1.zona_apoyo || !/^\d+$/.test(paso1.numero_apoyo.trim())) {
+          return "Para FMAP selecciona la zona y captura el número de apoyo (solo dígitos).";
+        }
+      } else if (!paso1.numero_llamado_manual.trim()) {
+        return `Para el llamado ${llamadoSeleccionado.codigo} debes capturar el número de llamado manualmente.`;
+      }
     }
     return "";
   }
@@ -133,7 +176,7 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
       if (!peticionId) {
         const creada = await peticionesApi.crear({
           llamado_id: paso1.llamado_id,
-          numero_llamado: requiereNumeroManual ? paso1.numero_llamado_manual.trim() : undefined,
+          numero_llamado: requiereNumeroManual ? numeroManual : undefined,
           receptor_id: paso1.receptor_id,
           nombre_ministerio_publico: paso1.nombre_ministerio_publico,
           con_detenido: paso1.con_detenido,
@@ -209,9 +252,9 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
 
   const bloqueDatosLlamado = (
     <div className="form-grid two-col" style={{ marginBottom: 24 }}>
-      <TextField label="Número de llamado" value={meta.numero_llamado} readOnly disabled className="field-readonly" />
-      <TextField label="Fecha" value={meta.fecha_recibido} readOnly disabled className="field-readonly" />
-      <TextField label="Hora" value={meta.hora_recibido} readOnly disabled className="field-readonly" />
+      <TextField label={etiquetaNumero} value={meta.numero_llamado} readOnly disabled className="field-readonly" />
+      <TextField label="Fecha" value={fmt(meta.fecha_recibido)} readOnly disabled className="field-readonly" />
+      <TextField label="Hora" value={fmt(meta.hora_recibido)} readOnly disabled className="field-readonly" />
     </div>
   );
 
@@ -327,10 +370,38 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
                 label="Llamado"
                 options={opcionesLlamados}
                 value={paso1.llamado_id}
-                onChange={(e) => update1("llamado_id", e.target.value)}
+                onChange={(e) =>
+                  setPaso1((p) => ({
+                    ...p,
+                    llamado_id: e.target.value,
+                    materia_id: "",
+                    numero_llamado_manual: "",
+                    zona_apoyo: "",
+                    numero_apoyo: "",
+                  }))
+                }
                 required
               />
-              {requiereNumeroManual && (
+
+              {requiereNumeroManual && esApoyo && (
+                <div className="form-grid two-col">
+                  <SelectField
+                    label="Zona (libro de apoyo)"
+                    options={OPCIONES_ZONA}
+                    value={paso1.zona_apoyo}
+                    onChange={(e) => update1("zona_apoyo", e.target.value)}
+                    required
+                  />
+                  <TextField
+                    label="Número de apoyo"
+                    value={paso1.numero_apoyo}
+                    onChange={(e) => update1("numero_apoyo", e.target.value.replace(/\D/g, ""))}
+                    placeholder="Ej. 123"
+                    required
+                  />
+                </div>
+              )}
+              {requiereNumeroManual && !esApoyo && (
                 <TextField
                   label={`Número de llamado (${llamadoSeleccionado.codigo}, captura manual)`}
                   value={paso1.numero_llamado_manual}
@@ -339,6 +410,7 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
                   required
                 />
               )}
+
               <SelectField
                 label="Nombre de receptor"
                 options={opcionesUsuarios}
@@ -364,8 +436,10 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
               <SelectField
                 label="Materia"
                 options={opcionesMaterias}
+                placeholder={paso1.llamado_id ? "Selecciona..." : "Selecciona primero un llamado"}
                 value={paso1.materia_id}
                 onChange={(e) => update1("materia_id", e.target.value)}
+                disabled={!paso1.llamado_id}
                 required
               />
               <SelectField
