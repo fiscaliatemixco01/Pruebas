@@ -129,6 +129,38 @@ router.post('/', requerirRol('Administrador', 'Receptor'), async (req, res) => {
   const receptor_id = req.usuario.id; // sale del token, no del body
 
   try {
+    const ll = await pool.query(
+      'SELECT codigo, es_automatico FROM llamados WHERE id = $1',
+      [llamado_id]
+    );
+    if (!ll.rows[0]) return res.status(400).json({ error: 'Llamado no válido' });
+    const { codigo, es_automatico } = ll.rows[0];
+
+    // La materia debe corresponder al llamado (si el llamado tiene materias configuradas)
+    const ok = await pool.query(
+      `SELECT NOT EXISTS (SELECT 1 FROM llamado_materias WHERE llamado_id = $1)
+           OR EXISTS (SELECT 1 FROM llamado_materias WHERE llamado_id = $1 AND materia_id = $2)
+              AS valido`,
+      [llamado_id, materia_id]
+    );
+    if (!ok.rows[0].valido) {
+      return res.status(400).json({ error: `Esa materia no corresponde al llamado ${codigo}` });
+    }
+
+    // Número manual (FMG, FMAP): obligatorio; FMAP con formato ZO/123 o JO/123
+    let numero = null;
+    if (!es_automatico) {
+      numero = String(numero_llamado || '').trim().toUpperCase();
+      if (!numero) {
+        return res.status(400).json({ error: 'El número debe capturarse manualmente' });
+      }
+      if (codigo === 'FMAP' && !/^(ZO|JO)\/\d+$/.test(numero)) {
+        return res.status(400).json({
+          error: 'El número de apoyo debe tener el formato ZO/123 o JO/123',
+        });
+      }
+    }
+
     const resultado = await pool.query(
       `INSERT INTO peticiones
         (llamado_id, receptor_id, nombre_ministerio_publico, con_detenido, materia_id, numero_carpeta, descripcion_solicitud, numero_llamado)
@@ -142,7 +174,7 @@ router.post('/', requerirRol('Administrador', 'Receptor'), async (req, res) => {
         materia_id,
         numero_carpeta,
         descripcion_solicitud,
-        numero_llamado || null,
+        numero,
       ]
     );
 
@@ -156,6 +188,9 @@ router.post('/', requerirRol('Administrador', 'Receptor'), async (req, res) => {
 
     res.status(201).json(nuevaPeticion);
   } catch (error) {
+    if (error.code === '23505') {
+      return res.status(409).json({ error: 'Ese número ya está registrado, no se puede duplicar' });
+    }
     console.error(error);
     res.status(500).json({ error: 'Error al crear la petición' });
   }

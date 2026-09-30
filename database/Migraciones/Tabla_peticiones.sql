@@ -165,3 +165,61 @@ JOIN materias m ON m.id = p.materia_id
 JOIN usuarios u_rec ON u_rec.id = p.receptor_id
 LEFT JOIN usuarios u_per ON u_per.id = p.perito_id
 LEFT JOIN usuarios u_ent ON u_ent.id = p.quien_recibe_id;
+
+
+
+
+-- Ajustes al catálogo de materias
+UPDATE materias SET nombre = 'Mecánica identificativa' WHERE nombre = 'Mecánica';
+UPDATE materias SET nombre = 'Tránsito terrestre'      WHERE nombre = 'Tránsito';
+
+INSERT INTO materias (nombre) VALUES
+  ('Contabilidad'),
+  ('Identificación humana'),
+  ('Antropología social'),
+  ('Retrato hablado'),
+  ('Mecánica identificativa de bienes asegurados')
+ON CONFLICT (nombre) DO NOTHING;
+
+-- Qué materias tiene cada llamado
+CREATE TABLE IF NOT EXISTS llamado_materias (
+  llamado_id INTEGER NOT NULL REFERENCES llamados(id) ON DELETE CASCADE,
+  materia_id INTEGER NOT NULL REFERENCES materias(id) ON DELETE CASCADE,
+  PRIMARY KEY (llamado_id, materia_id)
+);
+
+INSERT INTO llamado_materias (llamado_id, materia_id)
+SELECT l.id, m.id
+  FROM (VALUES
+    ('FM',   'Criminalística (diversos y homicidios)'),
+    ('FM',   'Química'),
+    ('FM',   'Odontología forense y social'),
+    ('FM',   'Incendios y explosivos'),
+    ('FM',   'Antropología'),
+    ('FM',   'Traducción'),
+    ('FM',   'Valuación'),
+    ('FM',   'Arquitectura'),
+    ('FM',   'Psicología'),
+    ('FM',   'Lofoscopía'),
+    ('FM',   'Fotografía'),
+    ('FM',   'Informática'),
+    ('FM',   'Contabilidad'),
+    ('FM',   'Grafoscopía'),
+    ('FM',   'Balística'),
+    ('FM',   'Criminalística de laboratorio'),
+    ('FM',   'Identificación humana'),
+    ('FM',   'Antropología social'),
+    ('FM',   'Retrato hablado'),
+    ('FMG',  'Genética'),
+    ('FMM',  'Mecánica identificativa'),
+    ('FMT',  'Tránsito terrestre'),
+    ('FMBA', 'Mecánica identificativa de bienes asegurados')
+  ) AS v(codigo, materia)
+  JOIN llamados l ON l.codigo = v.codigo
+  JOIN materias m ON m.nombre = v.materia
+ON CONFLICT DO NOTHING;
+
+-- Comprobar: cuántas materias tiene cada llamado
+SELECT l.codigo, COUNT(lm.materia_id) AS materias
+  FROM llamados l LEFT JOIN llamado_materias lm ON lm.llamado_id = l.id
+ GROUP BY l.codigo ORDER BY l.codigo;

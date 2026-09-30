@@ -1,8 +1,9 @@
 import { api } from "./client";
 
-// Backend esperado (tabla `usuarios`):
-//   GET /api/usuarios   -> lista de { nombre, apellidos, rol, materia }
-
 export const usuariosApi = {
+  // Lista todos los usuarios
   listar: () => api.get("/usuarios"),
+
+  // Cambiar contraseña del usuario logueado
+  cambiarContrasena: (datos) => api.put("/auth/admin/cambiar-contrasena", datos)
 };

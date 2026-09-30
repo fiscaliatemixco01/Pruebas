@@ -74,27 +74,7 @@ INSERT INTO acciones (nom_accion) VALUES
 INSERT INTO usuarios (nombre, correo, rol_id, verificado)
 VALUES ('Prueba Admin', 'admin@test.com', 1, TRUE);
 
--- Verificar
-SELECT * FROM roles;
-SELECT * FROM acciones;
-SELECT * FROM usuarios;
-SELECT * FROM bitacora;
 
-
-
-
-ALTER TABLE peticiones ALTER COLUMN entrega_dictamen DROP NOT NULL;
-ALTER TABLE peticiones ALTER COLUMN entrega_informe DROP NOT NULL;
-
-
-SELECT column_name, is_nullable 
-FROM information_schema.columns 
-WHERE table_name = 'peticiones';
-
-
-ALTER TABLE peticiones ALTER COLUMN entrega_dictamen DROP NOT NULL;
-ALTER TABLE peticiones ALTER COLUMN entrega_informe DROP NOT NULL;
--- Agrega aquí cualquier otra columna que se llene hasta una etapa posterior
 
 
 ALTER TABLE peticiones ALTER COLUMN entrega_dictamen DROP NOT NULL;
@@ -123,3 +103,11 @@ CREATE TABLE carpetas (
     numero_carpeta VARCHAR(50) NOT NULL UNIQUE,
     activo BOOLEAN NOT NULL DEFAULT TRUE
 );
+
+
+ALTER TABLE peticiones DROP COLUMN biom_firma_id;
+
+SELECT table_name FROM information_schema.views WHERE table_name = 'vw_peticiones';
+
+SELECT * FROM bitacora;
+SELECT * FROM acciones ORDER BY id;
