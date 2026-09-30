@@ -2,6 +2,7 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
+const bcrypt = require('bcrypt'); // usa 'bcryptjs' si es el que tienes instalado
 const pool = require('../db');
 const { verificarToken, requerirRol } = require('../middleware/auth');
 
@@ -115,6 +116,7 @@ router.get('/:id', requerirRol(...TODOS), async (req, res) => {
 });
 
 // ---------- CREAR (Administrador y Receptor) ----------
+// El perito ya se asigna aquí, en el primer formulario.
 router.post('/', requerirRol('Administrador', 'Receptor'), async (req, res) => {
   const {
     llamado_id,
@@ -124,6 +126,7 @@ router.post('/', requerirRol('Administrador', 'Receptor'), async (req, res) => {
     numero_carpeta,
     descripcion_solicitud,
     numero_llamado,
+    perito_id,
   } = req.body;
 
   const receptor_id = req.usuario.id; // sale del token, no del body
@@ -147,6 +150,18 @@ router.post('/', requerirRol('Administrador', 'Receptor'), async (req, res) => {
       return res.status(400).json({ error: `Esa materia no corresponde al llamado ${codigo}` });
     }
 
+    // Si viene perito, debe ser un usuario con rol Perito
+    const peritoFinal = perito_id === '' || perito_id === undefined ? null : perito_id;
+    if (peritoFinal !== null) {
+      const pr = await pool.query(
+        `SELECT 1 FROM usuarios u
+           JOIN roles r ON r.id = u.rol_id
+          WHERE u.id = $1 AND r.nombre = 'Perito'`,
+        [peritoFinal]
+      );
+      if (!pr.rows[0]) return res.status(400).json({ error: 'El perito seleccionado no es válido' });
+    }
+
     // Número manual (FMG, FMAP): obligatorio; FMAP con formato ZO/123 o JO/123
     let numero = null;
     if (!es_automatico) {
@@ -163,8 +178,8 @@ router.post('/', requerirRol('Administrador', 'Receptor'), async (req, res) => {
 
     const resultado = await pool.query(
       `INSERT INTO peticiones
-        (llamado_id, receptor_id, nombre_ministerio_publico, con_detenido, materia_id, numero_carpeta, descripcion_solicitud, numero_llamado)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        (llamado_id, receptor_id, nombre_ministerio_publico, con_detenido, materia_id, numero_carpeta, descripcion_solicitud, numero_llamado, perito_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
       [
         llamado_id,
@@ -175,6 +190,7 @@ router.post('/', requerirRol('Administrador', 'Receptor'), async (req, res) => {
         numero_carpeta,
         descripcion_solicitud,
         numero,
+        peritoFinal,
       ]
     );
 
@@ -196,9 +212,9 @@ router.post('/', requerirRol('Administrador', 'Receptor'), async (req, res) => {
   }
 });
 
-// ---------- EDITAR / COMPLETAR ----------
-// Administrador: todo. Receptor: solo asignar perito / quien recibe en una
-// petición suya que todavía no tiene perito (paso 2 de "Nuevo registro").
+// ---------- EDITAR ----------
+// Administrador: todo (menos quien recibe/firma, que solo se llena con /firmar).
+// Receptor: solo asignar perito en una petición suya que todavía no tiene perito.
 router.put('/:id', requerirRol('Administrador', 'Receptor'), async (req, res) => {
   const { id } = req.params;
   if (!/^\d+$/.test(id)) return res.status(400).json({ error: 'Id de petición inválido' });
@@ -218,9 +234,8 @@ router.put('/:id', requerirRol('Administrador', 'Receptor'), async (req, res) =>
       }
 
       const r = await pool.query(
-        `UPDATE peticiones SET perito_id = $1, quien_recibe_id = $2
-          WHERE id = $3 RETURNING *`,
-        [n(b.perito_id), n(b.quien_recibe_id), id]
+        `UPDATE peticiones SET perito_id = $1 WHERE id = $2 RETURNING *`,
+        [n(b.perito_id), id]
       );
       await pool.query(
         `INSERT INTO bitacora (us_id, acc_id, pet_id) VALUES ($1, 4, $2)`,
@@ -238,12 +253,11 @@ router.put('/:id', requerirRol('Administrador', 'Receptor'), async (req, res) =>
          materia_id                = COALESCE($4, materia_id),
          numero_carpeta            = COALESCE($5, numero_carpeta),
          descripcion_solicitud     = COALESCE($6, descripcion_solicitud),
-         perito_id       = CASE WHEN $7  THEN $8  ELSE perito_id END,
-         quien_recibe_id = CASE WHEN $9  THEN $10 ELSE quien_recibe_id END,
-         entrega_dictamen      = COALESCE($11, entrega_dictamen),
-         entrega_informe       = COALESCE($12, entrega_informe),
-         entrega_requerimiento = COALESCE($13, entrega_requerimiento)
-       WHERE id = $14
+         perito_id       = CASE WHEN $7 THEN $8 ELSE perito_id END,
+         entrega_dictamen      = COALESCE($9,  entrega_dictamen),
+         entrega_informe       = COALESCE($10, entrega_informe),
+         entrega_requerimiento = COALESCE($11, entrega_requerimiento)
+       WHERE id = $12
        RETURNING *`,
       [
         n(b.receptor_id),
@@ -253,7 +267,6 @@ router.put('/:id', requerirRol('Administrador', 'Receptor'), async (req, res) =>
         n(b.numero_carpeta),
         n(b.descripcion_solicitud),
         'perito_id' in b, n(b.perito_id),
-        'quien_recibe_id' in b, n(b.quien_recibe_id),
         n(b.entrega_dictamen),
         n(b.entrega_informe),
         n(b.entrega_requerimiento),
@@ -295,12 +308,21 @@ router.post(
     if (!COLUMNA_ENTREGA[tipo]) { borrar(); return res.status(400).json({ error: 'Tipo de entrega inválido' }); }
 
     try {
-      const p = await pool.query('SELECT perito_id FROM peticiones WHERE id = $1', [id]);
+      const p = await pool.query(
+        'SELECT perito_id, firmado_en FROM peticiones WHERE id = $1',
+        [id]
+      );
       if (!p.rows[0]) { borrar(); return res.status(404).json({ error: 'Petición no encontrada' }); }
 
       if (req.usuario.rol === 'Perito' && p.rows[0].perito_id !== req.usuario.id) {
         borrar();
         return res.status(403).json({ error: 'Esta petición no está asignada a ti' });
+      }
+
+      // Una entrega ya firmada no puede reemplazarse por el perito
+      if (req.usuario.rol === 'Perito' && p.rows[0].firmado_en) {
+        borrar();
+        return res.status(409).json({ error: 'La entrega ya fue firmada y no se puede reemplazar' });
       }
 
       const previo = await pool.query('SELECT archivo_ruta FROM entregas WHERE peticion_id = $1', [id]);
@@ -382,6 +404,62 @@ router.get('/:id/entrega/archivo', requerirRol(...TODOS), async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Error al descargar el archivo' });
+  }
+});
+
+// ---------- FIRMAR RECEPCIÓN (Administrador o Receptor, con contraseña) ----------
+router.post('/:id/firmar', requerirRol('Administrador', 'Receptor'), async (req, res) => {
+  const { id } = req.params;
+  const { contrasena } = req.body;
+
+  if (!/^\d+$/.test(id)) return res.status(400).json({ error: 'Id de petición inválido' });
+  if (!contrasena) return res.status(400).json({ error: 'Escribe tu contraseña para firmar' });
+
+  try {
+    // 1) Verifica la contraseña del usuario de la sesión (el id sale del token)
+    //    AJUSTA el nombre de la columna si tu hash no se llama "contrasena"
+const u = await pool.query('SELECT password_hash FROM usuarios WHERE id = $1', [req.usuario.id]);
+const coincide = u.rows[0] && (await bcrypt.compare(contrasena, u.rows[0].password_hash));
+    if (!coincide) {
+      // 403 y no 401, para que el frontend no lo tome como sesión vencida
+      return res.status(403).json({ error: 'Contraseña incorrecta' });
+    }
+
+    // 2) La petición debe existir, tener PDF cargado y no estar firmada
+    const p = await pool.query(
+      `SELECT p.firmado_en, e.peticion_id AS tiene_pdf
+         FROM peticiones p
+         LEFT JOIN entregas e ON e.peticion_id = p.id
+        WHERE p.id = $1`,
+      [id]
+    );
+    if (!p.rows[0]) return res.status(404).json({ error: 'Petición no encontrada' });
+    if (!p.rows[0].tiene_pdf) {
+      return res.status(400).json({ error: 'El perito todavía no carga el PDF' });
+    }
+    if (p.rows[0].firmado_en) {
+      return res.status(409).json({ error: 'Esta entrega ya fue firmada' });
+    }
+
+    // 3) Firma: quien recibe sale del token, nunca del body
+    const r = await pool.query(
+      `UPDATE peticiones
+          SET quien_recibe_id = $1, firmado_en = NOW()
+        WHERE id = $2 AND firmado_en IS NULL
+        RETURNING id, quien_recibe_id, firmado_en`,
+      [req.usuario.id, id]
+    );
+    if (!r.rows[0]) return res.status(409).json({ error: 'Esta entrega ya fue firmada' });
+
+    await pool.query(
+      `INSERT INTO bitacora (us_id, acc_id, pet_id) VALUES ($1, 4, $2)`,
+      [req.usuario.id, id]
+    );
+
+    res.json(r.rows[0]);
+    } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al firmar: ' + error.message });
   }
 });
 
