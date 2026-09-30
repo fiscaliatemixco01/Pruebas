@@ -10,6 +10,7 @@ export const peticionesApi = {
   listarLlamados: () => api.get("/llamados"),
   listarAsignadas: () => api.get("/peticiones/asignadas"),
   porFirmar: () => api.get("/peticiones/por-firmar"),
+  pendientes: () => api.get("/peticiones/pendientes"),
 
   // Entrega (PDF) de una petición
   obtenerEntrega: (id) => api.get(`/peticiones/${id}/entrega`),

@@ -68,7 +68,11 @@ async function notificarRoles(roles, excluirId, petId, tipo, mensaje) {
   }
 }
 
-// ---------- ASIGNADAS AL USUARIO LOGUEADO (debe ir ANTES de /:id) ----------
+// =====================================================================
+// RUTAS FIJAS: todas deben ir ANTES de cualquier ruta con "/:id"
+// =====================================================================
+
+// ---------- ASIGNADAS AL USUARIO LOGUEADO ----------
 router.get('/asignadas', requerirRol('Administrador', 'Perito'), async (req, res) => {
   try {
     const r = await pool.query(
@@ -254,6 +258,10 @@ router.get('/', requerirRol(...TODOS), async (req, res) => {
     res.status(500).json({ error: 'Error al consultar peticiones' });
   }
 });
+
+// =====================================================================
+// RUTAS CON "/:id"
+// =====================================================================
 
 // ---------- UNA petición (el perito solo si es suya) ----------
 router.get('/:id', requerirRol(...TODOS), async (req, res) => {

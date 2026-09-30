@@ -3,6 +3,7 @@ import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import { useAuth, iniciales } from "../context/AuthContext";
 import { puedeVer } from "../paginas/permisos";
 import usePendientes from "../reutilizables/usePendientes";
+import useTrabajoPendiente from "../reutilizables/useTrabajoPendiente";
 import { notificacionesApi } from "../api/notificaciones";
 import fiscaliaLogo from "../assets/FISCALIA_LOGO.png";
 import "./AppLayout.css";
@@ -106,12 +107,16 @@ export default function AppLayout({ title, children }) {
   const visibleItems = NAV_ITEMS.filter((item) => puedeVer(user?.rol, item.vista));
 
   // Qué items del menú llevan puntito rojo
-  const puntos = {
-    notificaciones: pendientes.some((n) => n.tipo === "asignada"), // Perito
-    porFirmar: pendientes.some((n) => n.tipo === "lista_firma"), // Administrador / Receptor
-  };
+const conteo = useTrabajoPendiente();
+const esPerito = user?.rol === "Perito";
+const puedeFirmar = user?.rol === "Administrador" || user?.rol === "Receptor";
 
-  console.log("pendientes:", pendientes, "puntos:", puntos, "rol:", user?.rol);
+// El punto se queda mientras haya trabajo pendiente
+const puntos = {
+  notificaciones: esPerito && conteo.por_entregar > 0,
+  porFirmar: puedeFirmar && conteo.por_firmar > 0,
+};
+
 
   // Al entrar a la pantalla, se marcan como leídas y el punto se apaga
   useEffect(() => {
