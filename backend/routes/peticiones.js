@@ -150,13 +150,13 @@ router.post('/', requerirRol('Administrador', 'Receptor'), async (req, res) => {
       return res.status(400).json({ error: `Esa materia no corresponde al llamado ${codigo}` });
     }
 
-    // Si viene perito, debe ser un usuario con rol Perito
-    const peritoFinal = perito_id === '' || perito_id === undefined ? null : perito_id;
+     // Si viene perito, debe ser un usuario con rol Perito
+    const peritoFinal = perito_id === '' || perito_id === undefined || perito_id === null ? null : perito_id;
     if (peritoFinal !== null) {
       const pr = await pool.query(
         `SELECT 1 FROM usuarios u
            JOIN roles r ON r.id = u.rol_id
-          WHERE u.id = $1 AND r.nombre = 'Perito'`,
+          WHERE u.id = $1 AND r.nom_rol = 'Perito'`,
         [peritoFinal]
       );
       if (!pr.rows[0]) return res.status(400).json({ error: 'El perito seleccionado no es válido' });
@@ -451,8 +451,9 @@ const coincide = u.rows[0] && (await bcrypt.compare(contrasena, u.rows[0].passwo
     );
     if (!r.rows[0]) return res.status(409).json({ error: 'Esta entrega ya fue firmada' });
 
-    await pool.query(
-      `INSERT INTO bitacora (us_id, acc_id, pet_id) VALUES ($1, 4, $2)`,
+   await pool.query(
+      `INSERT INTO bitacora (us_id, acc_id, pet_id, fecha_hora)
+      VALUES ($1, 7, $2, NOW())`,
       [req.usuario.id, id]
     );
 
