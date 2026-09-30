@@ -8,7 +8,7 @@ export default function NuevaPeticion() {
   return (
     <AppLayout title="Registro de petición">
       <div className="page-heading">
-        <p>Captura los datos del llamado y, en el siguiente paso, la asignación del perito.</p>
+        <p>Captura los datos del llamado y asigna al perito.</p>
       </div>
       <PeticionWizard mode="nueva" onSaved={() => navigate("/peticiones/buscar")} />
     </AppLayout>

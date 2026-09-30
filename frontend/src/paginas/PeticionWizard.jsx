@@ -5,7 +5,7 @@ import { carpetasApi } from "../api/carpetas";
 import { useAuth } from "../context/AuthContext";
 import { RadioGroup, SelectField, TextArea, TextField } from "../reutilizables/Field";
 
-const emptyPaso1 = {
+const emptyForm = {
   llamado_id: "",
   numero_llamado_manual: "",
   zona_apoyo: "", // FMAP: "ZO" o "JO"
@@ -16,11 +16,7 @@ const emptyPaso1 = {
   materia_id: "",
   numero_carpeta: "",
   descripcion_solicitud: "",
-};
-
-const emptyPaso2 = {
   perito_id: "",
-  quien_recibe_id: "",
 };
 
 const OPCIONES_ZONA = [
@@ -47,18 +43,17 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
   // En edición, solo el Administrador puede modificar
   const soloLectura = esEdicion && user?.rol !== "Administrador";
 
-  const [step, setStep] = useState(esEdicion ? "editar" : 1);
-  const [peticionId, setPeticionId] = useState(initialData?.id ?? null);
+  const peticionId = initialData?.id ?? null;
 
-  const [meta, setMeta] = useState({
+  const [meta] = useState({
     numero_llamado: initialData?.numero_llamado ?? "Se genera automáticamente",
     fecha_recibido: initialData?.fecha_recibido ?? "Se genera automáticamente",
     hora_recibido: initialData?.hora_recibido ?? "Se genera automáticamente",
     tipo_llamado: initialData?.tipo_llamado ?? "",
   });
 
-  const [paso1, setPaso1] = useState({
-    ...emptyPaso1,
+  const [form, setForm] = useState({
+    ...emptyForm,
     ...(initialData
       ? {
           llamado_id: initialData.llamado_id ?? "",
@@ -68,15 +63,7 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
           materia_id: initialData.materia_id ?? "",
           numero_carpeta: initialData.numero_carpeta ?? "",
           descripcion_solicitud: initialData.descripcion_solicitud ?? "",
-        }
-      : {}),
-  });
-  const [paso2, setPaso2] = useState({
-    ...emptyPaso2,
-    ...(initialData
-      ? {
           perito_id: initialData.perito_id ?? "",
-          quien_recibe_id: initialData.quien_recibe_id ?? "",
         }
       : {}),
   });
@@ -101,22 +88,22 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
 
   // Materias: solo las del llamado seleccionado
   useEffect(() => {
-    if (!paso1.llamado_id) {
+    if (!form.llamado_id) {
       setMaterias([]);
       return;
     }
     peticionesApi
-      .listarMaterias(paso1.llamado_id)
+      .listarMaterias(form.llamado_id)
       .then(setMaterias)
       .catch(() => setMaterias([]));
-  }, [paso1.llamado_id]);
+  }, [form.llamado_id]);
 
-  const llamadoSeleccionado = llamados.find((l) => String(l.id) === String(paso1.llamado_id));
+  const llamadoSeleccionado = llamados.find((l) => String(l.id) === String(form.llamado_id));
   const requiereNumeroManual = llamadoSeleccionado ? !llamadoSeleccionado.es_automatico : false;
   const esApoyo = llamadoSeleccionado?.codigo === "FMAP";
   const numeroManual = esApoyo
-    ? `${paso1.zona_apoyo}/${paso1.numero_apoyo.trim()}`
-    : paso1.numero_llamado_manual.trim();
+    ? `${form.zona_apoyo}/${form.numero_apoyo.trim()}`
+    : form.numero_llamado_manual.trim();
   const etiquetaNumero =
     esApoyo || meta.tipo_llamado === "FMAP" ? "Número de apoyo" : "Número de llamado";
 
@@ -132,86 +119,58 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
   }));
   const opcionesCarpetas = carpetas.map((c) => ({ value: c.numero_carpeta, label: c.numero_carpeta }));
 
-  function update1(field, value) {
-    setPaso1((p) => ({ ...p, [field]: value }));
-  }
-  function update2(field, value) {
-    setPaso2((p) => ({ ...p, [field]: value }));
+  function update(field, value) {
+    setForm((p) => ({ ...p, [field]: value }));
   }
 
-  function validarPaso1() {
+  function validar() {
     if (
-      !paso1.llamado_id ||
-      !paso1.receptor_id ||
-      !paso1.nombre_ministerio_publico ||
-      !paso1.materia_id ||
-      !paso1.numero_carpeta ||
-      !paso1.descripcion_solicitud
+      !form.llamado_id ||
+      !form.receptor_id ||
+      !form.nombre_ministerio_publico ||
+      !form.materia_id ||
+      !form.numero_carpeta ||
+      !form.descripcion_solicitud
     ) {
       return "Llamado, receptor, nombre del MP, materia, número de carpeta y descripción son obligatorios.";
     }
     // El número manual solo se captura al crear, no al editar
     if (!esEdicion && requiereNumeroManual) {
       if (esApoyo) {
-        if (!paso1.zona_apoyo || !/^\d+$/.test(paso1.numero_apoyo.trim())) {
+        if (!form.zona_apoyo || !/^\d+$/.test(form.numero_apoyo.trim())) {
           return "Para FMAP selecciona la zona y captura el número de apoyo (solo dígitos).";
         }
-      } else if (!paso1.numero_llamado_manual.trim()) {
+      } else if (!form.numero_llamado_manual.trim()) {
         return `Para el llamado ${llamadoSeleccionado.codigo} debes capturar el número de llamado manualmente.`;
       }
     }
     return "";
   }
 
-  async function handleSiguiente(e) {
+  async function handleGuardarNueva(e) {
     e.preventDefault();
     setError("");
-    const msg = validarPaso1();
+    setSuccess("");
+    const msg = validar();
     if (msg) {
       setError(msg);
       return;
     }
     setLoading(true);
     try {
-      if (!peticionId) {
-        const creada = await peticionesApi.crear({
-          llamado_id: paso1.llamado_id,
-          numero_llamado: requiereNumeroManual ? numeroManual : undefined,
-          receptor_id: paso1.receptor_id,
-          nombre_ministerio_publico: paso1.nombre_ministerio_publico,
-          con_detenido: paso1.con_detenido,
-          materia_id: paso1.materia_id,
-          numero_carpeta: paso1.numero_carpeta,
-          descripcion_solicitud: paso1.descripcion_solicitud,
-        });
-        setPeticionId(creada.id);
-        setMeta({
-          numero_llamado: creada.numero_llamado,
-          fecha_recibido: creada.fecha_recibido,
-          hora_recibido: creada.hora_recibido,
-          tipo_llamado: llamadoSeleccionado?.codigo ?? "",
-        });
-      }
-      setStep(2);
-    } catch (err) {
-      setError(err.message || "No se pudo guardar el paso 1.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleGuardarRegistro(e) {
-    e.preventDefault();
-    setError("");
-    setSuccess("");
-    setLoading(true);
-    try {
-      const saved = await peticionesApi.completar(peticionId, {
-        perito_id: paso2.perito_id || null,
-        quien_recibe_id: paso2.quien_recibe_id || null,
+      const creada = await peticionesApi.crear({
+        llamado_id: form.llamado_id,
+        numero_llamado: requiereNumeroManual ? numeroManual : undefined,
+        receptor_id: form.receptor_id,
+        nombre_ministerio_publico: form.nombre_ministerio_publico,
+        con_detenido: form.con_detenido,
+        materia_id: form.materia_id,
+        numero_carpeta: form.numero_carpeta,
+        descripcion_solicitud: form.descripcion_solicitud,
+        perito_id: form.perito_id || null,
       });
       setSuccess("Registro guardado correctamente.");
-      onSaved?.(saved);
+      onSaved?.(creada);
     } catch (err) {
       setError(err.message || "No se pudo guardar el registro.");
     } finally {
@@ -224,7 +183,7 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
     if (soloLectura) return;
     setError("");
     setSuccess("");
-    const msg = validarPaso1();
+    const msg = validar();
     if (msg) {
       setError(msg);
       return;
@@ -232,14 +191,13 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
     setLoading(true);
     try {
       const saved = await peticionesApi.completar(peticionId, {
-        receptor_id: paso1.receptor_id,
-        nombre_ministerio_publico: paso1.nombre_ministerio_publico,
-        con_detenido: paso1.con_detenido,
-        materia_id: paso1.materia_id,
-        numero_carpeta: paso1.numero_carpeta,
-        descripcion_solicitud: paso1.descripcion_solicitud,
-        perito_id: paso2.perito_id || null,
-        quien_recibe_id: paso2.quien_recibe_id || null,
+        receptor_id: form.receptor_id,
+        nombre_ministerio_publico: form.nombre_ministerio_publico,
+        con_detenido: form.con_detenido,
+        materia_id: form.materia_id,
+        numero_carpeta: form.numero_carpeta,
+        descripcion_solicitud: form.descripcion_solicitud,
+        perito_id: form.perito_id || null,
       });
       setSuccess("Cambios guardados correctamente.");
       onSaved?.(saved);
@@ -256,6 +214,16 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
       <TextField label="Fecha" value={fmt(meta.fecha_recibido)} readOnly disabled className="field-readonly" />
       <TextField label="Hora" value={fmt(meta.hora_recibido)} readOnly disabled className="field-readonly" />
     </div>
+  );
+
+  const selectPerito = (
+    <SelectField
+      label="Asignar perito"
+      options={opcionesPeritos}
+      placeholder="Selecciona un perito..."
+      value={form.perito_id}
+      onChange={(e) => update("perito_id", e.target.value)}
+    />
   );
 
   if (esEdicion) {
@@ -277,20 +245,20 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
                 <SelectField
                   label="Nombre de receptor"
                   options={opcionesUsuarios}
-                  value={paso1.receptor_id}
-                  onChange={(e) => update1("receptor_id", e.target.value)}
+                  value={form.receptor_id}
+                  onChange={(e) => update("receptor_id", e.target.value)}
                   required
                 />
                 <TextField
                   label="Nombre de MP"
-                  value={paso1.nombre_ministerio_publico}
-                  onChange={(e) => update1("nombre_ministerio_publico", e.target.value)}
+                  value={form.nombre_ministerio_publico}
+                  onChange={(e) => update("nombre_ministerio_publico", e.target.value)}
                   required
                 />
                 <RadioGroup
                   name="con_detenido"
-                  value={paso1.con_detenido}
-                  onChange={(v) => update1("con_detenido", v === "true")}
+                  value={form.con_detenido}
+                  onChange={(v) => update("con_detenido", v === "true")}
                   options={[
                     { value: true, label: "Con detenido" },
                     { value: false, label: "Sin detenido" },
@@ -299,41 +267,25 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
                 <SelectField
                   label="Materia"
                   options={opcionesMaterias}
-                  value={paso1.materia_id}
-                  onChange={(e) => update1("materia_id", e.target.value)}
+                  value={form.materia_id}
+                  onChange={(e) => update("materia_id", e.target.value)}
                   required
                 />
                 <SelectField
                   label="Número de carpeta"
                   options={opcionesCarpetas}
-                  value={paso1.numero_carpeta}
-                  onChange={(e) => update1("numero_carpeta", e.target.value)}
+                  value={form.numero_carpeta}
+                  onChange={(e) => update("numero_carpeta", e.target.value)}
                   required
                 />
+                {selectPerito}
               </div>
 
               <TextArea
                 label="Descripción de lo que solicita el MP"
-                value={paso1.descripcion_solicitud}
-                onChange={(e) => update1("descripcion_solicitud", e.target.value)}
+                value={form.descripcion_solicitud}
+                onChange={(e) => update("descripcion_solicitud", e.target.value)}
                 required
-              />
-            </div>
-
-            <div className="form-grid two-col" style={{ marginTop: 24 }}>
-              <SelectField
-                label="Asignar perito"
-                options={opcionesPeritos}
-                placeholder="Selecciona un perito..."
-                value={paso2.perito_id}
-                onChange={(e) => update2("perito_id", e.target.value)}
-              />
-              <SelectField
-                label="Nombre del que recibe (entrega)"
-                options={opcionesUsuarios}
-                placeholder="Selecciona..."
-                value={paso2.quien_recibe_id}
-                onChange={(e) => update2("quien_recibe_id", e.target.value)}
               />
             </div>
           </fieldset>
@@ -352,155 +304,114 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
 
   return (
     <div>
-      <div className="stepper">
-        <span className={"step-pill" + (step === 1 ? " is-current" : "")}>1. Datos del llamado</span>
-        <span className={"step-pill" + (step === 2 ? " is-current" : "")}>2. Perito y entrega</span>
-      </div>
-
       {error ? <div className="status-banner error">{error}</div> : null}
       {success ? <div className="status-banner success">{success}</div> : null}
 
-      {step === 1 && (
-        <form className="card" onSubmit={handleSiguiente}>
-          {bloqueDatosLlamado}
+      <form className="card" onSubmit={handleGuardarNueva}>
+        {bloqueDatosLlamado}
 
-          <div className="form-grid">
-            <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-              <SelectField
-                label="Llamado"
-                options={opcionesLlamados}
-                value={paso1.llamado_id}
-                onChange={(e) =>
-                  setPaso1((p) => ({
-                    ...p,
-                    llamado_id: e.target.value,
-                    materia_id: "",
-                    numero_llamado_manual: "",
-                    zona_apoyo: "",
-                    numero_apoyo: "",
-                  }))
-                }
-                required
-              />
-
-              {requiereNumeroManual && esApoyo && (
-                <div className="form-grid two-col">
-                  <SelectField
-                    label="Zona (libro de apoyo)"
-                    options={OPCIONES_ZONA}
-                    value={paso1.zona_apoyo}
-                    onChange={(e) => update1("zona_apoyo", e.target.value)}
-                    required
-                  />
-                  <TextField
-                    label="Número de apoyo"
-                    value={paso1.numero_apoyo}
-                    onChange={(e) => update1("numero_apoyo", e.target.value.replace(/\D/g, ""))}
-                    placeholder="Ej. 123"
-                    required
-                  />
-                </div>
-              )}
-              {requiereNumeroManual && !esApoyo && (
-                <TextField
-                  label={`Número de llamado (${llamadoSeleccionado.codigo}, captura manual)`}
-                  value={paso1.numero_llamado_manual}
-                  onChange={(e) => update1("numero_llamado_manual", e.target.value)}
-                  placeholder={`Ej. ${llamadoSeleccionado.codigo}001/26`}
-                  required
-                />
-              )}
-
-              <SelectField
-                label="Nombre de receptor"
-                options={opcionesUsuarios}
-                value={paso1.receptor_id}
-                onChange={(e) => update1("receptor_id", e.target.value)}
-                required
-              />
-              <TextField
-                label="Nombre de MP"
-                value={paso1.nombre_ministerio_publico}
-                onChange={(e) => update1("nombre_ministerio_publico", e.target.value)}
-                required
-              />
-              <RadioGroup
-                name="con_detenido"
-                value={paso1.con_detenido}
-                onChange={(v) => update1("con_detenido", v === "true")}
-                options={[
-                  { value: true, label: "Con detenido" },
-                  { value: false, label: "Sin detenido" },
-                ]}
-              />
-              <SelectField
-                label="Materia"
-                options={opcionesMaterias}
-                placeholder={paso1.llamado_id ? "Selecciona..." : "Selecciona primero un llamado"}
-                value={paso1.materia_id}
-                onChange={(e) => update1("materia_id", e.target.value)}
-                disabled={!paso1.llamado_id}
-                required
-              />
-              <SelectField
-                label="Número de carpeta"
-                options={opcionesCarpetas}
-                value={paso1.numero_carpeta}
-                onChange={(e) => update1("numero_carpeta", e.target.value)}
-                required
-              />
-            </div>
-
-            <TextArea
-              label="Descripción de lo que solicita el MP"
-              value={paso1.descripcion_solicitud}
-              onChange={(e) => update1("descripcion_solicitud", e.target.value)}
+        <div className="form-grid">
+          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+            <SelectField
+              label="Llamado"
+              options={opcionesLlamados}
+              value={form.llamado_id}
+              onChange={(e) =>
+                setForm((p) => ({
+                  ...p,
+                  llamado_id: e.target.value,
+                  materia_id: "",
+                  numero_llamado_manual: "",
+                  zona_apoyo: "",
+                  numero_apoyo: "",
+                }))
+              }
               required
             />
-          </div>
 
-          <div className="btn-row end">
-            <button className="btn btn-primary" type="submit" disabled={loading}>
-              {loading ? "Guardando..." : "Siguiente"}
-            </button>
-          </div>
-        </form>
-      )}
+            {requiereNumeroManual && esApoyo && (
+              <div className="form-grid two-col">
+                <SelectField
+                  label="Zona (libro de apoyo)"
+                  options={OPCIONES_ZONA}
+                  value={form.zona_apoyo}
+                  onChange={(e) => update("zona_apoyo", e.target.value)}
+                  required
+                />
+                <TextField
+                  label="Número de apoyo"
+                  value={form.numero_apoyo}
+                  onChange={(e) => update("numero_apoyo", e.target.value.replace(/\D/g, ""))}
+                  placeholder="Ej. 123"
+                  required
+                />
+              </div>
+            )}
+            {requiereNumeroManual && !esApoyo && (
+              <TextField
+                label={`Número de llamado (${llamadoSeleccionado.codigo}, captura manual)`}
+                value={form.numero_llamado_manual}
+                onChange={(e) => update("numero_llamado_manual", e.target.value)}
+                placeholder={`Ej. ${llamadoSeleccionado.codigo}001/26`}
+                required
+              />
+            )}
 
-      {step === 2 && (
-        <form className="card" onSubmit={handleGuardarRegistro}>
-          <div className="form-grid two-col">
             <SelectField
-              label="Asignar perito"
-              options={opcionesPeritos}
-              placeholder="Selecciona un perito..."
-              value={paso2.perito_id}
-              onChange={(e) => update2("perito_id", e.target.value)}
-            />
-            <SelectField
-              label="Nombre del que recibe (entrega)"
+              label="Nombre de receptor"
               options={opcionesUsuarios}
-              placeholder="Selecciona..."
-              value={paso2.quien_recibe_id}
-              onChange={(e) => update2("quien_recibe_id", e.target.value)}
+              value={form.receptor_id}
+              onChange={(e) => update("receptor_id", e.target.value)}
+              required
             />
+            <TextField
+              label="Nombre de MP"
+              value={form.nombre_ministerio_publico}
+              onChange={(e) => update("nombre_ministerio_publico", e.target.value)}
+              required
+            />
+            <RadioGroup
+              name="con_detenido"
+              value={form.con_detenido}
+              onChange={(v) => update("con_detenido", v === "true")}
+              options={[
+                { value: true, label: "Con detenido" },
+                { value: false, label: "Sin detenido" },
+              ]}
+            />
+            <SelectField
+              label="Materia"
+              options={opcionesMaterias}
+              placeholder={form.llamado_id ? "Selecciona..." : "Selecciona primero un llamado"}
+              value={form.materia_id}
+              onChange={(e) => update("materia_id", e.target.value)}
+              disabled={!form.llamado_id}
+              required
+            />
+            <SelectField
+              label="Número de carpeta"
+              options={opcionesCarpetas}
+              value={form.numero_carpeta}
+              onChange={(e) => update("numero_carpeta", e.target.value)}
+              required
+            />
+            {selectPerito}
           </div>
 
-          <div className="btn-row end" style={{ marginTop: 24 }}>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={() => setStep(1)}
-              disabled={loading}
-            >
-              Regresar
-            </button>
-            <button className="btn btn-primary" type="submit" disabled={loading}>
-              {loading ? "Guardando..." : "Guardar registro"}
-            </button>
-          </div>
-        </form>
-      )}
+          <TextArea
+            label="Descripción de lo que solicita el MP"
+            value={form.descripcion_solicitud}
+            onChange={(e) => update("descripcion_solicitud", e.target.value)}
+            required
+          />
+        </div>
+
+        <div className="btn-row end">
+          <button className="btn btn-primary" type="submit" disabled={loading}>
+            {loading ? "Guardando..." : "Guardar registro"}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }
