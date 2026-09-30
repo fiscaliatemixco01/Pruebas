@@ -12,9 +12,10 @@ const PORT = process.env.PORT || 3000;
 
 // Nombres de rol: deben coincidir EXACTO con roles.nom_rol en la BD
 const ADMIN = 'Administrador';
-const PERITO = 'Perito';
 const RECEPTOR = 'Receptor';
+const PERITO = 'Perito';
 const CONSULTA = 'Consulta';
+const TODOS = [ADMIN, RECEPTOR, PERITO, CONSULTA];
 
 app.use(express.json());
 
@@ -80,7 +81,7 @@ app.get('/api/usuarios', verificarToken, requerirRol(ADMIN), async (req, res) =>
 });
 
 // Catálogo de materias
-app.get('/api/materias', verificarToken, requerirRol(ADMIN, RECEPTOR), async (req, res) => {
+app.get('/api/materias', verificarToken, requerirRol(...TODOS), async (req, res) =>{
   try {
     const resultado = await pool.query(
       'SELECT id, nombre FROM materias WHERE activo = true ORDER BY nombre'
