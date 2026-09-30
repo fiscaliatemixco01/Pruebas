@@ -12,6 +12,15 @@ const COLORES = [
   "#4f7a9e", "#8a5fa0", "#c95f8f", "#5f9ea0", "#7a7a7a",
 ];
 
+const MESES = [
+  "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio",
+  "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
+];
+
+// AJUSTA estas dos líneas a como lo hace tu proyecto (mira tu api/client.js)
+const API_URL = "http://localhost:3000/api";
+const obtenerToken = () => localStorage.getItem("token");
+
 export default function Estadisticas() {
   const [materias, setMaterias] = useState([]);
   const [materiaId, setMateriaId] = useState("todas");
@@ -21,6 +30,13 @@ export default function Estadisticas() {
 
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+
+  // Reporte mensual en PDF
+  const hoy = new Date();
+  const [repMes, setRepMes] = useState(String(hoy.getMonth() + 1));
+  const [repAnio, setRepAnio] = useState(String(hoy.getFullYear()));
+  const [descargando, setDescargando] = useState(false);
+  const [errorPdf, setErrorPdf] = useState("");
 
   const esTodas = materiaId === "todas";
 
@@ -76,6 +92,42 @@ export default function Estadisticas() {
     return `conic-gradient(${segmentos.join(", ")})`;
   }, [porMateria, totalPorMateria]);
 
+  const opcionesAnio = useMemo(() => {
+    const actual = new Date().getFullYear();
+    return Array.from({ length: 6 }, (_, i) => {
+      const a = actual - i;
+      return { value: String(a), label: String(a) };
+    });
+  }, []);
+
+  async function descargarReporte() {
+    setDescargando(true);
+    setErrorPdf("");
+    try {
+      const resp = await fetch(
+        `${API_URL}/peticiones/reporte-mensual?mes=${repMes}&anio=${repAnio}`,
+        { headers: { Authorization: `Bearer ${obtenerToken()}` } }
+      );
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}));
+        throw new Error(data.error || "No se pudo generar el PDF.");
+      }
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `peticiones-${repAnio}-${String(repMes).padStart(2, "0")}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setErrorPdf(err.message || "No se pudo descargar el PDF.");
+    } finally {
+      setDescargando(false);
+    }
+  }
+
   return (
     <AppLayout title="Estadísticas">
       <div className="stats-toolbar">
@@ -113,6 +165,38 @@ export default function Estadisticas() {
             <span className="stats-card-label">Este mes</span>
             <span className="stats-card-value">{loading ? "…" : conteos.mes}</span>
           </div>
+        </div>
+      </div>
+
+      <div className="card">
+        <div className="page-heading" style={{ marginBottom: 16 }}>
+          <h2>Reporte mensual en PDF</h2>
+          <p>Descarga las peticiones recibidas en el mes y año que elijas.</p>
+        </div>
+
+        {errorPdf ? <div className="status-banner error">{errorPdf}</div> : null}
+
+        <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
+          <SelectField
+            label="Mes"
+            options={MESES.map((m, i) => ({ value: String(i + 1), label: m }))}
+            value={repMes}
+            onChange={(e) => setRepMes(e.target.value)}
+          />
+          <SelectField
+            label="Año"
+            options={opcionesAnio}
+            value={repAnio}
+            onChange={(e) => setRepAnio(e.target.value)}
+          />
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={descargarReporte}
+            disabled={descargando}
+          >
+            {descargando ? "Generando..." : "Descargar PDF"}
+          </button>
         </div>
       </div>
 
