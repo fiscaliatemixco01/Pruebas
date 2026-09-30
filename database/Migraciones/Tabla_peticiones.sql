@@ -135,7 +135,7 @@ CREATE TRIGGER trg_generar_numero_llamado
     EXECUTE FUNCTION fn_generar_numero_llamado();
 
 
-CREATE VIEW vw_peticiones AS
+CREATE OR REPLACE VIEW vw_peticiones AS
 SELECT
     p.id,
     p.numero_llamado,
@@ -158,7 +158,8 @@ SELECT
     p.entrega_informe,
     p.entrega_requerimiento,
     p.quien_recibe_id,
-    u_ent.nombre                AS nombre_quien_recibe
+    u_ent.nombre                AS nombre_quien_recibe,
+    p.firmado_en
 FROM peticiones p
 JOIN llamados l ON l.id = p.llamado_id
 JOIN materias m ON m.id = p.materia_id
