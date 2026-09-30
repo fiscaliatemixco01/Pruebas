@@ -1,8 +1,9 @@
-import { useState } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import { useAuth, iniciales } from "../context/AuthContext";
 import { puedeVer } from "../paginas/permisos";
-import NotificacionesBell from "../reutilizables/NotificacionesBell";
+import usePendientes from "../reutilizables/usePendientes";
+import { notificacionesApi } from "../api/notificaciones";
 import fiscaliaLogo from "../assets/FISCALIA_LOGO.png";
 import "./AppLayout.css";
 
@@ -97,10 +98,35 @@ const NAV_ITEMS = [
 export default function AppLayout({ title, children }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
+  const { pendientes, recargar } = usePendientes();
 
   // Solo se muestran las vistas permitidas para el rol del usuario
   const visibleItems = NAV_ITEMS.filter((item) => puedeVer(user?.rol, item.vista));
+
+  // Qué items del menú llevan puntito rojo
+  const puntos = {
+    notificaciones: pendientes.some((n) => n.tipo === "asignada"), // Perito
+    porFirmar: pendientes.some((n) => n.tipo === "lista_firma"), // Administrador / Receptor
+  };
+
+  console.log("pendientes:", pendientes, "puntos:", puntos, "rol:", user?.rol);
+
+  // Al entrar a la pantalla, se marcan como leídas y el punto se apaga
+  useEffect(() => {
+    const tipo =
+      pathname === "/por-firmar" ? "lista_firma" :
+      pathname === "/notificaciones" ? "asignada" : null;
+    if (!tipo) return;
+
+    const sinLeer = pendientes.filter((n) => n.tipo === tipo);
+    if (!sinLeer.length) return;
+
+    Promise.all(sinLeer.map((n) => notificacionesApi.marcarLeida(n.id)))
+      .then(recargar)
+      .catch(console.error);
+  }, [pathname, pendientes, recargar]);
 
   async function handleLogout() {
     await logout();
@@ -129,6 +155,19 @@ export default function AppLayout({ title, children }) {
             >
               <span className="sidebar-link-icon">{ICONS[item.icon]}</span>
               <span className="sidebar-link-label">{item.label}</span>
+              {puntos[item.vista] ? (
+                <span
+                  aria-label="Pendiente"
+                  style={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: "50%",
+                    background: "#ef4444",
+                    boxShadow: "0 0 0 3px rgba(239, 68, 68, 0.25)",
+                    flexShrink: 0,
+                  }}
+                />
+              ) : null}
               {item.expandable ? <span className="sidebar-link-chevron">{ICONS.chevron}</span> : null}
             </NavLink>
           ))}
@@ -155,9 +194,6 @@ export default function AppLayout({ title, children }) {
           {title ? <h1 className="shell-title">{title}</h1> : <span />}
 
           <div className="shell-topbar-actions" style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            {/* Componente de la Campana de Notificaciones */}
-            <NotificacionesBell usuario={user} />
-
             <div className="shell-avatar" title={user ? `${user.nombre} ${user.apellidos}` : ""}>
               {iniciales(user)}
             </div>
