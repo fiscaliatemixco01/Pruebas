@@ -24,6 +24,10 @@ const OPCIONES_ZONA = [
   { value: "JO", label: "Jojutla (JO)" },
 ];
 
+// Roles que pueden aparecer como receptor (ajusta si en tu BD se llaman distinto)
+const ROLES_RECEPTOR = ["receptor", "administrador"];
+const esRolReceptor = (rol) => ROLES_RECEPTOR.includes(String(rol || "").toLowerCase());
+
 // "2026-09-29T06:00:00.000Z" -> "2026-09-29" ; "13:01:28.411176" -> "13:01:28"
 const fmt = (v) => {
   if (typeof v !== "string") return v;
@@ -31,6 +35,8 @@ const fmt = (v) => {
   if (/^\d{2}:\d{2}:\d{2}/.test(v)) return v.slice(0, 8);
   return v;
 };
+
+const nombreCompleto = (u) => [u.nombre, u.apellidos].filter(Boolean).join(" ");
 
 /**
  * mode: "nueva" | "editar"
@@ -86,6 +92,13 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
     carpetasApi.listar().then(setCarpetas).catch(() => setCarpetas([]));
   }, []);
 
+  // Nuevo registro: el receptor siempre es el usuario logueado
+  useEffect(() => {
+    if (!esEdicion && user?.id) {
+      setForm((p) => ({ ...p, receptor_id: user.id }));
+    }
+  }, [esEdicion, user?.id]);
+
   // Materias: solo las del llamado seleccionado
   useEffect(() => {
     if (!form.llamado_id) {
@@ -107,10 +120,18 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
   const etiquetaNumero =
     esApoyo || meta.tipo_llamado === "FMAP" ? "Número de apoyo" : "Número de llamado";
 
-  const opcionesUsuarios = usuarios.map((u) => ({
-    value: u.id,
-    label: [u.nombre, u.apellidos].filter(Boolean).join(" "),
-  }));
+  // NUEVA: solo receptores/administradores y únicamente el usuario logueado
+  const opcionesReceptoresNueva = usuarios
+    .filter((u) => esRolReceptor(u.rol))
+    .filter((u) => String(u.id) === String(user?.id))
+    .map((u) => ({ value: u.id, label: nombreCompleto(u) }));
+
+  // EDICIÓN: solo receptores/administradores (se conserva el receptor actual
+  // aunque ya no tenga ese rol, para que el combo no quede en blanco)
+  const opcionesReceptoresEdicion = usuarios
+    .filter((u) => esRolReceptor(u.rol) || String(u.id) === String(form.receptor_id))
+    .map((u) => ({ value: u.id, label: nombreCompleto(u) }));
+
   const opcionesMaterias = materias.map((m) => ({ value: m.id, label: m.nombre }));
   const opcionesPeritos = peritos.map((p) => ({ value: p.id, label: p.nombre }));
   const opcionesLlamados = llamados.map((l) => ({
@@ -151,6 +172,13 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
     e.preventDefault();
     setError("");
     setSuccess("");
+
+    // Solo receptores y administradores pueden registrar llamados
+    if (!esRolReceptor(user?.rol)) {
+      setError("Solo un receptor o administrador puede registrar llamados.");
+      return;
+    }
+
     const msg = validar();
     if (msg) {
       setError(msg);
@@ -161,7 +189,7 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
       const creada = await peticionesApi.crear({
         llamado_id: form.llamado_id,
         numero_llamado: requiereNumeroManual ? numeroManual : undefined,
-        receptor_id: form.receptor_id,
+        receptor_id: user.id, // siempre el usuario logueado
         nombre_ministerio_publico: form.nombre_ministerio_publico,
         con_detenido: form.con_detenido,
         materia_id: form.materia_id,
@@ -244,7 +272,7 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
               <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
                 <SelectField
                   label="Nombre de receptor"
-                  options={opcionesUsuarios}
+                  options={opcionesReceptoresEdicion}
                   value={form.receptor_id}
                   onChange={(e) => update("receptor_id", e.target.value)}
                   required
@@ -357,11 +385,13 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
               />
             )}
 
+            {/* Solo el usuario logueado (receptor/administrador), bloqueado */}
             <SelectField
               label="Nombre de receptor"
-              options={opcionesUsuarios}
+              options={opcionesReceptoresNueva}
               value={form.receptor_id}
               onChange={(e) => update("receptor_id", e.target.value)}
+              disabled
               required
             />
             <TextField
