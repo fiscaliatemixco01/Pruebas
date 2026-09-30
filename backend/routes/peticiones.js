@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 const bcrypt = require('bcrypt'); // usa 'bcryptjs' si es el que tienes instalado
+const PDFDocument = require('pdfkit');
 const pool = require('../db');
 const { verificarToken, requerirRol } = require('../middleware/auth');
 
@@ -10,6 +11,9 @@ const router = express.Router();
 router.use(verificarToken);
 
 const TODOS = ['Administrador', 'Receptor', 'Perito', 'Consulta'];
+
+const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio',
+  'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
 // ---------- CONFIGURACIÓN DE MULTER (subida de PDF) ----------
 const DIR_ENTREGAS = path.join(__dirname, '..', 'uploads', 'entregas');
@@ -103,25 +107,113 @@ router.get('/por-firmar', requerirRol('Administrador', 'Receptor'), async (req, 
   }
 });
 
-// ---------- CONTEO PARA EL PUNTITO DEL MENÚ ----------
-router.get('/pendientes', requerirRol('Administrador', 'Receptor', 'Perito'), async (req, res) => {
+// ---------- REPORTE MENSUAL EN PDF (debe ir ANTES de /:id) ----------
+router.get('/reporte-mensual', requerirRol('Administrador', 'Receptor', 'Consulta'), async (req, res) => {
+  const mes = parseInt(req.query.mes, 10);
+  const anio = parseInt(req.query.anio, 10);
+  if (!(mes >= 1 && mes <= 12) || !(anio >= 2000 && anio <= 2100)) {
+    return res.status(400).json({ error: 'Mes o año inválido' });
+  }
+
   try {
+    // Solo el mes pedido: desde el día 1 hasta antes del día 1 del mes siguiente
     const r = await pool.query(
-      `SELECT
-         (SELECT COUNT(*)::int
-            FROM peticiones p
-            JOIN entregas e ON e.peticion_id = p.id
-           WHERE p.firmado_en IS NULL) AS por_firmar,
-         (SELECT COUNT(*)::int
-            FROM peticiones p
-           WHERE p.perito_id = $1
-             AND NOT EXISTS (SELECT 1 FROM entregas e WHERE e.peticion_id = p.id)) AS por_entregar`,
-      [req.usuario.id]
+      `SELECT numero_llamado,
+              to_char(fecha_recibido, 'DD/MM/YYYY') AS fecha,
+              LEFT(hora_recibido::text, 5)          AS hora,
+              nombre_receptor,
+              nombre_ministerio_publico,
+              estatus_detenido,
+              materia,
+              numero_carpeta,
+              nombre_perito
+         FROM vw_peticiones
+        WHERE fecha_recibido >= make_date($1, $2, 1)
+          AND fecha_recibido <  make_date($1, $2, 1) + INTERVAL '1 month'
+        ORDER BY fecha_recibido, hora_recibido`,
+      [anio, mes]
     );
-    res.json(r.rows[0]);
+
+    const cols = [
+      { t: 'Número de llamado',  k: 'numero_llamado',            w: 90 },
+      { t: 'Fecha',              k: 'fecha',                     w: 62 },
+      { t: 'Hora',               k: 'hora',                      w: 45 },
+      { t: 'Nombre de receptor', k: 'nombre_receptor',           w: 110 },
+      { t: 'Nombre del MP',      k: 'nombre_ministerio_publico', w: 120 },
+      { t: 'Con o sin detenido', k: 'estatus_detenido',          w: 75 },
+      { t: 'Materia',            k: 'materia',                   w: 85 },
+      { t: 'Número de carpeta',  k: 'numero_carpeta',            w: 70 },
+      { t: 'Perito asignado',    k: 'nombre_perito',             w: 125 },
+    ];
+    const X0 = 30;
+    const PAD = 4;
+    const anchoTotal = cols.reduce((s, c) => s + c.w, 0);
+
+    const doc = new PDFDocument({ size: 'A4', layout: 'landscape', margin: 30 });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="peticiones-${anio}-${String(mes).padStart(2, '0')}.pdf"`
+    );
+    doc.pipe(res);
+
+    const limiteInferior = doc.page.height - 40;
+
+    // Alto que ocupará una fila
+    function altoFila(valores, cabecera) {
+      doc.font(cabecera ? 'Helvetica-Bold' : 'Helvetica').fontSize(8);
+      return Math.max(
+        ...valores.map((v, i) =>
+          doc.heightOfString(String(v ?? ''), { width: cols[i].w - PAD * 2 })
+        )
+      ) + PAD * 2;
+    }
+
+    // Dibuja una fila y devuelve la "y" donde termina
+    function dibujarFila(y, valores, cabecera) {
+      const alto = altoFila(valores, cabecera);
+      if (cabecera) doc.rect(X0, y, anchoTotal, alto).fill('#1f2a44');
+
+      let x = X0;
+      valores.forEach((v, i) => {
+        if (!cabecera) doc.lineWidth(0.5).rect(x, y, cols[i].w, alto).stroke('#bbbbbb');
+        doc.font(cabecera ? 'Helvetica-Bold' : 'Helvetica').fontSize(8)
+          .fillColor(cabecera ? '#ffffff' : '#000000')
+          .text(String(v ?? ''), x + PAD, y + PAD, { width: cols[i].w - PAD * 2 });
+        x += cols[i].w;
+      });
+      return y + alto;
+    }
+
+    // Encabezado del documento
+    doc.font('Helvetica-Bold').fontSize(14).fillColor('#000000')
+      .text(`Peticiones de ${MESES[mes - 1]} ${anio}`, X0, 30);
+    doc.font('Helvetica').fontSize(9)
+      .text(`Total: ${r.rows.length}`, X0, 50);
+
+    let y = 70;
+    y = dibujarFila(y, cols.map((c) => c.t), true);
+
+    if (r.rows.length === 0) {
+      doc.font('Helvetica').fontSize(10).fillColor('#000000')
+        .text('No hay peticiones registradas en este mes.', X0, y + 10);
+    }
+
+    for (const fila of r.rows) {
+      const valores = cols.map((c) => fila[c.k]);
+      // Si no cabe, nueva página y se repite el encabezado de la tabla
+      if (y + altoFila(valores, false) > limiteInferior) {
+        doc.addPage();
+        y = 30;
+        y = dibujarFila(y, cols.map((c) => c.t), true);
+      }
+      y = dibujarFila(y, valores, false);
+    }
+
+    doc.end();
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'Error al consultar los pendientes' });
+    if (!res.headersSent) res.status(500).json({ error: 'Error al generar el reporte' });
   }
 });
 
