@@ -6,7 +6,7 @@ CREATE TABLE roles (
 
 -- Tabla de acciones
 CREATE TABLE acciones (
-    id SERIAL PRIMARY KEY,
+    id SERIAL PRIMARY KEY, 
     nom_accion VARCHAR(100) NOT NULL UNIQUE
 );
 
@@ -111,3 +111,9 @@ SELECT table_name FROM information_schema.views WHERE table_name = 'vw_peticione
 
 SELECT * FROM bitacora;
 SELECT * FROM acciones ORDER BY id;
+
+SELECT * FROM acciones ORDER BY 1;
+INSERT INTO acciones (nom_accion) VALUES ('Firma de recepción');
+
+SELECT * FROM roles;
+SELECT column_name FROM information_schema.columns WHERE table_name = 'roles';
