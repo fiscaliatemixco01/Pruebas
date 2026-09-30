@@ -372,9 +372,9 @@ router.post(
     if (!req.file) return res.status(400).json({ error: 'Adjunta un archivo PDF' });
     if (!COLUMNA_ENTREGA[tipo]) { borrar(); return res.status(400).json({ error: 'Tipo de entrega inválido' }); }
 
-    try {
+     try {
       const p = await pool.query(
-        'SELECT perito_id, firmado_en, numero_llamado FROM peticiones WHERE id = $1'
+        'SELECT perito_id, firmado_en, numero_llamado FROM peticiones WHERE id = $1',
         [id]
       );
       if (!p.rows[0]) { borrar(); return res.status(404).json({ error: 'Petición no encontrada' }); }
@@ -421,10 +421,10 @@ router.post(
       );
 
       res.status(201).json(guardada.rows[0]);
-    } catch (error) {
+       } catch (error) {
       borrar();
-      console.error(error);
-      res.status(500).json({ error: 'Error al guardar la entrega' });
+      console.error('ERROR ENTREGA:', error);
+      res.status(500).json({ error: 'Error al guardar la entrega: ' + error.message });
     }
   }
 );
