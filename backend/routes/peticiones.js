@@ -35,6 +35,35 @@ const COLUMNA_ENTREGA = {
   requerimiento: 'entrega_requerimiento',
 };
 
+// ---------- NOTIFICACIONES (un fallo aquí nunca debe romper la operación) ----------
+async function notificar(usuarioIds, petId, tipo, mensaje) {
+  const ids = [...new Set(usuarioIds.filter(Boolean))];
+  if (!ids.length) return;
+  try {
+    await pool.query(
+      `INSERT INTO notificaciones (us_id, pet_id, tipo, mensaje)
+       SELECT unnest($1::int[]), $2, $3, $4`,
+      [ids, petId, tipo, mensaje]
+    );
+  } catch (error) {
+    console.error('No se pudo crear la notificación:', error.message);
+  }
+}
+
+async function notificarRoles(roles, excluirId, petId, tipo, mensaje) {
+  try {
+    const r = await pool.query(
+      `SELECT u.id FROM usuarios u
+         JOIN roles r ON r.id = u.rol_id
+        WHERE r.nom_rol = ANY($1) AND u.id <> $2`,
+      [roles, excluirId]
+    );
+    await notificar(r.rows.map((x) => x.id), petId, tipo, mensaje);
+  } catch (error) {
+    console.error('No se pudo notificar a los roles:', error.message);
+  }
+}
+
 // ---------- ASIGNADAS AL USUARIO LOGUEADO (debe ir ANTES de /:id) ----------
 router.get('/asignadas', requerirRol('Administrador', 'Perito'), async (req, res) => {
   try {
@@ -50,6 +79,23 @@ router.get('/asignadas', requerirRol('Administrador', 'Perito'), async (req, res
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Error al consultar peticiones asignadas' });
+  }
+});
+
+// ---------- LLAMADOS LISTOS PARA FIRMAR (PDF cargado, sin firma) ----------
+router.get('/por-firmar', requerirRol('Administrador', 'Receptor'), async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT v.*
+         FROM vw_peticiones v
+         JOIN entregas e ON e.peticion_id = v.id
+        WHERE v.firmado_en IS NULL
+        ORDER BY e.subido_en ASC`
+    );
+    res.json(r.rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al consultar los llamados por firmar' });
   }
 });
 
@@ -202,6 +248,11 @@ router.post('/', requerirRol('Administrador', 'Receptor'), async (req, res) => {
       [receptor_id, nuevaPeticion.id]
     );
 
+    if (peritoFinal !== null) {
+      await notificar([peritoFinal], nuevaPeticion.id, 'asignada',
+        `Nueva petición ${nuevaPeticion.numero_llamado} asignada a ti`);
+    }
+
     res.status(201).json(nuevaPeticion);
   } catch (error) {
     if (error.code === '23505') {
@@ -241,8 +292,16 @@ router.put('/:id', requerirRol('Administrador', 'Receptor'), async (req, res) =>
         `INSERT INTO bitacora (us_id, acc_id, pet_id) VALUES ($1, 4, $2)`,
         [req.usuario.id, id]
       );
+
+        await notificar([n(b.perito_id)], id, 'asignada',
+        `Nueva petición ${r.rows[0].numero_llamado} asignada a ti`);
+
       return res.json(r.rows[0]);
     }
+
+
+    const previa = await pool.query('SELECT perito_id FROM peticiones WHERE id = $1', [id]);
+
 
     // Administrador
     const resultado = await pool.query(
@@ -283,6 +342,12 @@ router.put('/:id', requerirRol('Administrador', 'Receptor'), async (req, res) =>
       [req.usuario.id, id]
     );
 
+    const nuevoPerito = resultado.rows[0].perito_id;
+      if (nuevoPerito && nuevoPerito !== previa.rows[0]?.perito_id) {
+        await notificar([nuevoPerito], id, 'asignada',
+          `Nueva petición ${resultado.rows[0].numero_llamado} asignada a ti`);
+      }
+
     res.json(resultado.rows[0]);
   } catch (error) {
     console.error(error);
@@ -309,7 +374,7 @@ router.post(
 
     try {
       const p = await pool.query(
-        'SELECT perito_id, firmado_en FROM peticiones WHERE id = $1',
+        'SELECT perito_id, firmado_en, numero_llamado FROM peticiones WHERE id = $1'
         [id]
       );
       if (!p.rows[0]) { borrar(); return res.status(404).json({ error: 'Petición no encontrada' }); }
@@ -349,6 +414,11 @@ router.post(
       );
 
       if (previo.rows[0]?.archivo_ruta) fs.unlink(previo.rows[0].archivo_ruta, () => {});
+
+      await notificarRoles(
+        ['Administrador', 'Receptor'], req.usuario.id, id, 'lista_firma',
+        `El llamado ${p.rows[0].numero_llamado} ya tiene PDF y está listo para firmarse`
+      );
 
       res.status(201).json(guardada.rows[0]);
     } catch (error) {

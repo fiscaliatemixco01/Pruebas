@@ -38,10 +38,12 @@ export const VISTAS = {
   usuarios:       [ADMIN],
   crearCuenta:    [ADMIN],
   bitacora:       [ADMIN],
+  porFirmar: [ADMIN, RECEPTOR],
 };
 
 export function puedeVer(rol, vista) {
-  return !!rol && !!VISTAS[vista]?.includes(rol);
+  if (!vista || !VISTAS[vista]) return true;
+  return VISTAS[vista].includes(rol);
 }
 
 // Ítems del menú lateral / navbar.
