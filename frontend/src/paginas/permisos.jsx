@@ -28,7 +28,7 @@ const { ADMIN, PERITO, RECEPTOR, CONSULTA } = ROLES;
 */
 export const VISTAS = {
   inicio:         [ADMIN, PERITO, RECEPTOR, CONSULTA],
-  notificaciones: [ADMIN, PERITO],
+  notificaciones: [PERITO],
   nuevoRegistro:  [ADMIN, RECEPTOR],
   expedientes:    [ADMIN, RECEPTOR],
   verPeticion:    [ADMIN, RECEPTOR, PERITO, CONSULTA],
