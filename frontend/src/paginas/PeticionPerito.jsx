@@ -107,7 +107,7 @@ export default function PeticionPerito() {
           <div className="card">
             <div className="page-heading" style={{ marginBottom: 16 }}>
               <h2>{peticion.numero_llamado}</h2>
-              <p>Datos capturados por Mesa de partes. Solo lectura.</p>
+              <p>Datos capturados por el receptor. Solo lectura.</p>
             </div>
             <div className="detalle-grid">
               <div>
