@@ -107,6 +107,28 @@ router.get('/por-firmar', requerirRol('Administrador', 'Receptor'), async (req, 
   }
 });
 
+// ---------- CONTEO PARA EL PUNTITO DEL MENÚ ----------
+router.get('/pendientes', requerirRol('Administrador', 'Receptor', 'Perito'), async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT
+         (SELECT COUNT(*)::int
+            FROM peticiones p
+            JOIN entregas e ON e.peticion_id = p.id
+           WHERE p.firmado_en IS NULL) AS por_firmar,
+         (SELECT COUNT(*)::int
+            FROM peticiones p
+           WHERE p.perito_id = $1
+             AND NOT EXISTS (SELECT 1 FROM entregas e WHERE e.peticion_id = p.id)) AS por_entregar`,
+      [req.usuario.id]
+    );
+    res.json(r.rows[0]);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al consultar los pendientes' });
+  }
+});
+
 // ---------- REPORTE MENSUAL EN PDF (debe ir ANTES de /:id) ----------
 router.get('/reporte-mensual', requerirRol('Administrador', 'Receptor', 'Consulta'), async (req, res) => {
   const mes = parseInt(req.query.mes, 10);
