@@ -86,7 +86,6 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
 
   // Catálogos que no dependen de nada
   useEffect(() => {
-    peticionesApi.listarPeritos().then(setPeritos).catch(() => setPeritos([]));
     peticionesApi.listarLlamados().then(setLlamados).catch(() => setLlamados([]));
     usuariosApi.listar().then(setUsuarios).catch(() => setUsuarios([]));
     carpetasApi.listar().then(setCarpetas).catch(() => setCarpetas([]));
@@ -111,6 +110,18 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
       .catch(() => setMaterias([]));
   }, [form.llamado_id]);
 
+  // Peritos: solo los de la materia seleccionada
+  useEffect(() => {
+    if (!form.materia_id) {
+      setPeritos([]);
+      return;
+    }
+    peticionesApi
+      .listarPeritos(form.materia_id)
+      .then(setPeritos)
+      .catch(() => setPeritos([]));
+  }, [form.materia_id]);
+
   const llamadoSeleccionado = llamados.find((l) => String(l.id) === String(form.llamado_id));
   const requiereNumeroManual = llamadoSeleccionado ? !llamadoSeleccionado.es_automatico : false;
   const esApoyo = llamadoSeleccionado?.codigo === "FMAP";
@@ -134,14 +145,30 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
 
   const opcionesMaterias = materias.map((m) => ({ value: m.id, label: m.nombre }));
   const opcionesPeritos = peritos.map((p) => ({ value: p.id, label: p.nombre }));
+  // En edición se conserva visible el perito actual aunque no aparezca en la lista de la materia
+  if (
+    initialData?.perito_id &&
+    String(form.perito_id) === String(initialData.perito_id) &&
+    !opcionesPeritos.some((o) => String(o.value) === String(initialData.perito_id))
+  ) {
+    opcionesPeritos.push({
+      value: initialData.perito_id,
+      label: initialData.nombre_perito || "Perito actual",
+    });
+  }
   const opcionesLlamados = llamados.map((l) => ({
     value: l.id,
     label: l.es_automatico ? l.codigo : `${l.codigo} (captura manual)`,
   }));
-  const opcionesCarpetas = carpetas.map((c) => ({ value: c.numero_carpeta, label: c.numero_carpeta }));
 
   function update(field, value) {
-    setForm((p) => ({ ...p, [field]: value }));
+    // Si cambia la materia, el perito elegido ya podría no corresponder: se limpia
+    setForm((p) => ({ ...p, [field]: value, ...(field === "materia_id" ? { perito_id: "" } : {}) }));
+  }
+
+  // Todo texto capturado se convierte a mayúsculas mientras se escribe
+  function updateMayus(field, value) {
+    update(field, value.toUpperCase());
   }
 
   function validar() {
@@ -193,7 +220,7 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
         nombre_ministerio_publico: form.nombre_ministerio_publico,
         con_detenido: form.con_detenido,
         materia_id: form.materia_id,
-        numero_carpeta: form.numero_carpeta,
+        numero_carpeta: form.numero_carpeta, // si no existe, el backend la crea
         descripcion_solicitud: form.descripcion_solicitud,
         perito_id: form.perito_id || null,
       });
@@ -248,10 +275,37 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
     <SelectField
       label="Asignar perito"
       options={opcionesPeritos}
-      placeholder="Selecciona un perito..."
+      placeholder={
+        !form.materia_id
+          ? "Selecciona primero una materia"
+          : opcionesPeritos.length === 0
+            ? "No hay peritos para esta materia"
+            : "Selecciona un perito..."
+      }
       value={form.perito_id}
       onChange={(e) => update("perito_id", e.target.value)}
+      disabled={!form.materia_id}
     />
+  );
+
+  // Carpeta: se escribe una nueva o se elige una existente (sugerencias del datalist)
+  const campoCarpeta = (
+    <>
+      <TextField
+        label="Número de carpeta"
+        value={form.numero_carpeta}
+        onChange={(e) => updateMayus("numero_carpeta", e.target.value)}
+        list="carpetas-existentes"
+        placeholder="Escribe uno nuevo o elige uno existente"
+        autoComplete="off"
+        required
+      />
+      <datalist id="carpetas-existentes">
+        {carpetas.map((c) => (
+          <option key={c.id} value={c.numero_carpeta} />
+        ))}
+      </datalist>
+    </>
   );
 
   if (esEdicion) {
@@ -280,7 +334,7 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
                 <TextField
                   label="Nombre de MP"
                   value={form.nombre_ministerio_publico}
-                  onChange={(e) => update("nombre_ministerio_publico", e.target.value)}
+                  onChange={(e) => updateMayus("nombre_ministerio_publico", e.target.value)}
                   required
                 />
                 <RadioGroup
@@ -299,20 +353,14 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
                   onChange={(e) => update("materia_id", e.target.value)}
                   required
                 />
-                <SelectField
-                  label="Número de carpeta"
-                  options={opcionesCarpetas}
-                  value={form.numero_carpeta}
-                  onChange={(e) => update("numero_carpeta", e.target.value)}
-                  required
-                />
+                {campoCarpeta}
                 {selectPerito}
               </div>
 
               <TextArea
                 label="Descripción de lo que solicita el MP"
                 value={form.descripcion_solicitud}
-                onChange={(e) => update("descripcion_solicitud", e.target.value)}
+                onChange={(e) => updateMayus("descripcion_solicitud", e.target.value)}
                 required
               />
             </div>
@@ -349,6 +397,7 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
                   ...p,
                   llamado_id: e.target.value,
                   materia_id: "",
+                  perito_id: "",
                   numero_llamado_manual: "",
                   zona_apoyo: "",
                   numero_apoyo: "",
@@ -379,7 +428,7 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
               <TextField
                 label={`Número de llamado (${llamadoSeleccionado.codigo}, captura manual)`}
                 value={form.numero_llamado_manual}
-                onChange={(e) => update("numero_llamado_manual", e.target.value)}
+                onChange={(e) => updateMayus("numero_llamado_manual", e.target.value)}
                 placeholder={`Ej. ${llamadoSeleccionado.codigo}001/26`}
                 required
               />
@@ -397,7 +446,7 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
             <TextField
               label="Nombre de MP"
               value={form.nombre_ministerio_publico}
-              onChange={(e) => update("nombre_ministerio_publico", e.target.value)}
+              onChange={(e) => updateMayus("nombre_ministerio_publico", e.target.value)}
               required
             />
             <RadioGroup
@@ -418,20 +467,14 @@ export default function PeticionWizard({ mode = "nueva", initialData = null, onS
               disabled={!form.llamado_id}
               required
             />
-            <SelectField
-              label="Número de carpeta"
-              options={opcionesCarpetas}
-              value={form.numero_carpeta}
-              onChange={(e) => update("numero_carpeta", e.target.value)}
-              required
-            />
+            {campoCarpeta}
             {selectPerito}
           </div>
 
           <TextArea
             label="Descripción de lo que solicita el MP"
             value={form.descripcion_solicitud}
-            onChange={(e) => update("descripcion_solicitud", e.target.value)}
+            onChange={(e) => updateMayus("descripcion_solicitud", e.target.value)}
             required
           />
         </div>

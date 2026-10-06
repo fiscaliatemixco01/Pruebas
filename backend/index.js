@@ -100,15 +100,28 @@ app.get('/api/materias', verificarToken, requerirRol(...TODOS), async (req, res)
 });
 
 // Usuarios con rol de Perito
+// Usuarios con rol de Perito. Con ?materia_id=X devuelve solo los de esa materia.
 app.get('/api/peritos', verificarToken, requerirRol(ADMIN, RECEPTOR), async (req, res) => {
+  const { materia_id } = req.query;
+  const params = [PERITO];
+  let filtroMateria = '';
+
+  if (materia_id !== undefined && materia_id !== '') {
+    if (!/^\d+$/.test(String(materia_id))) {
+      return res.status(400).json({ error: 'Materia inválida' });
+    }
+    params.push(materia_id);
+    filtroMateria = `AND u.materia_id = $${params.length}`;
+  }
+
   try {
     const resultado = await pool.query(
-      `SELECT u.id, u.nombre, u.correo
+      `SELECT u.id, u.nombre, u.correo, u.materia_id
          FROM usuarios u
          JOIN roles r ON r.id = u.rol_id
-        WHERE r.nom_rol = $1
+        WHERE r.nom_rol = $1 ${filtroMateria}
         ORDER BY u.nombre`,
-      [PERITO]
+      params
     );
     res.json(resultado.rows);
   } catch (error) {
