@@ -1,9 +1,182 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import AppLayout from "../reutilizables/AppLayout";
 import { carpetasApi } from "../api/carpetas";
 import { peticionesApi } from "../api/peticiones";
 import { useAuth } from "../context/AuthContext";
-import PeticionCard from "../reutilizables/PeticionCard";
+
+function formatoFechaHora(valor) {
+  if (!valor) return "";
+  const d = new Date(valor);
+  return isNaN(d) ? String(valor) : d.toLocaleString("es-MX");
+}
+
+// "2026-09-29T06:00:00.000Z" -> "2026-09-29"
+function soloFecha(valor) {
+  return typeof valor === "string" && /^\d{4}-\d{2}-\d{2}T/.test(valor) ? valor.slice(0, 10) : valor;
+}
+
+/* Tarjeta de una petición: datos, PDF y firma de recepción (debajo del PDF) */
+function PeticionCard({ p, esAdmin, puedeFirmar, nombreUsuario, onFirmado }) {
+  const [entrega, setEntrega] = useState(undefined); // undefined = cargando, null = sin PDF
+  const [abierto, setAbierto] = useState(false);
+  const [contrasena, setContrasena] = useState("");
+  const [firmando, setFirmando] = useState(false);
+  const [error, setError] = useState("");
+  const [errorPdf, setErrorPdf] = useState("");
+
+  useEffect(() => {
+    let vivo = true;
+    peticionesApi
+      .obtenerEntrega(p.id)
+      .then((e) => vivo && setEntrega(e))
+      .catch(() => vivo && setEntrega(null));
+    return () => {
+      vivo = false;
+    };
+  }, [p.id]);
+
+  async function abrirPdf() {
+    setErrorPdf("");
+    try {
+      const blob = await peticionesApi.descargarEntrega(p.id);
+      window.open(URL.createObjectURL(blob), "_blank");
+    } catch (err) {
+      setErrorPdf(err.message || "No se pudo abrir el PDF.");
+    }
+  }
+
+  function cancelar() {
+    setAbierto(false);
+    setContrasena("");
+    setError("");
+  }
+
+  async function firmar(e) {
+    e.preventDefault();
+    if (!contrasena) {
+      setError("Escribe tu contraseña para firmar.");
+      return;
+    }
+    setFirmando(true);
+    setError("");
+    try {
+      await peticionesApi.firmar(p.id, contrasena);
+      cancelar();
+      onFirmado();
+    } catch (err) {
+      setError(err.message || "No se pudo firmar la entrega.");
+    } finally {
+      setFirmando(false);
+    }
+  }
+
+  const firmada = Boolean(p.firmado_en);
+
+  return (
+    <div className="card result-card">
+      <div className="result-card-meta">
+        <div>
+          <span className="label">Llamado</span>
+          <span className="value">{p.numero_llamado}</span>
+        </div>
+        <div>
+          <span className="label">Fecha</span>
+          <span className="value">{soloFecha(p.fecha_recibido)}</span>
+        </div>
+        <div>
+          <span className="label">Perito</span>
+          <span className="value">{p.nombre_perito || "Sin asignar"}</span>
+        </div>
+        <div>
+          <span className="label">Materia</span>
+          <span className="value">{p.materia}</span>
+        </div>
+        <div>
+          <span className="label">MP</span>
+          <span className="value">{p.nombre_ministerio_publico}</span>
+        </div>
+        <div>
+          <span className="label">Estado</span>
+          <span className="value">{firmada ? "Completada" : "Pendiente"}</span>
+        </div>
+      </div>
+
+      {/* PDF */}
+      <div style={{ marginTop: 12 }}>
+        <span className="label">Entrega (PDF)</span>
+        {entrega === undefined ? (
+          <div className="table-empty">Cargando...</div>
+        ) : entrega === null ? (
+          <div className="table-empty">El perito todavía no carga el PDF.</div>
+        ) : (
+          <>
+            {errorPdf ? <div className="status-banner error">{errorPdf}</div> : null}
+            <div className="btn-row">
+              <button type="button" className="btn btn-secondary" onClick={abrirPdf}>
+                Ver PDF cargado
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Firma de recepción: justo debajo del PDF */}
+      {entrega && (
+        <div style={{ marginTop: 12 }}>
+          <span className="label">Firma de recepción</span>
+
+          {firmada ? (
+            <div className="status-banner success" style={{ marginTop: 6 }}>
+              Recibida por {p.nombre_quien_recibe || "—"} el {formatoFechaHora(p.firmado_en)}
+            </div>
+          ) : puedeFirmar ? (
+            abierto ? (
+              <form onSubmit={firmar} style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 6 }}>
+                <span>
+                  Firmarás como <strong>{nombreUsuario}</strong>. Confirma con tu contraseña.
+                </span>
+                <input
+                  type="password"
+                  className="field-input"
+                  placeholder="Tu contraseña"
+                  value={contrasena}
+                  onChange={(e) => setContrasena(e.target.value)}
+                  autoComplete="current-password"
+                  autoFocus
+                  style={{ maxWidth: 280 }}
+                />
+                {error ? <div className="status-banner error">{error}</div> : null}
+                <div className="btn-row">
+                  <button type="submit" className="btn btn-primary" disabled={firmando}>
+                    {firmando ? "Firmando..." : "Confirmar firma"}
+                  </button>
+                  <button type="button" className="btn btn-secondary" onClick={cancelar}>
+                    Cancelar
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <div className="btn-row" style={{ marginTop: 6 }}>
+                <button type="button" className="btn btn-primary" onClick={() => setAbierto(true)}>
+                  Firmar entrega
+                </button>
+              </div>
+            )
+          ) : (
+            <div className="table-empty">Pendiente de firma por el receptor.</div>
+          )}
+        </div>
+      )}
+
+      <div style={{ marginTop: 12 }}>
+        <Link className="btn btn-secondary" to={`/peticiones/editar/${p.id}`}>
+          {esAdmin ? "Ver / editar" : "Ver"}
+        </Link>
+      </div>
+    </div>
+  );
+}
 
 export default function Carpetas() {
   const { user } = useAuth();
@@ -12,11 +185,8 @@ export default function Carpetas() {
   const nombreUsuario = [user?.nombre, user?.apellidos].filter(Boolean).join(" ");
 
   const [carpetas, setCarpetas] = useState([]);
-  const [nuevaCarpeta, setNuevaCarpeta] = useState("");
   const [error, setError] = useState("");
-  const [aviso, setAviso] = useState("");
   const [loading, setLoading] = useState(true);
-  const [guardando, setGuardando] = useState(false);
 
   const [seleccionada, setSeleccionada] = useState(null);
   const [peticiones, setPeticiones] = useState([]);
@@ -24,42 +194,15 @@ export default function Carpetas() {
   const [errorPeticiones, setErrorPeticiones] = useState("");
 
   useEffect(() => {
-    cargar();
-  }, []);
-
-  function cargar() {
-    setLoading(true);
     carpetasApi
       .listar()
       .then(setCarpetas)
       .catch((err) => setError(err.message || "No se pudo cargar la lista de carpetas."))
       .finally(() => setLoading(false));
-  }
-
-  async function handleCrear(e) {
-    e.preventDefault();
-    setError("");
-    setAviso("");
-    if (!nuevaCarpeta.trim()) {
-      setError("El número de carpeta es obligatorio.");
-      return;
-    }
-    setGuardando(true);
-    try {
-      await carpetasApi.crear(nuevaCarpeta.trim());
-      setAviso("Carpeta creada correctamente.");
-      setNuevaCarpeta("");
-      cargar();
-    } catch (err) {
-      setError(err.message || "No se pudo crear la carpeta.");
-    } finally {
-      setGuardando(false);
-    }
-  }
+  }, []);
 
   async function handleEliminar(id) {
     setError("");
-    setAviso("");
     try {
       await carpetasApi.eliminar(id);
       setCarpetas((prev) => prev.filter((c) => c.id !== id));
@@ -97,26 +240,11 @@ export default function Carpetas() {
 
   return (
     <AppLayout title="Carpetas">
-      {esAdmin && (
-        <form className="card" onSubmit={handleCrear}>
-          <div className="search-row" style={{ marginBottom: 0 }}>
-            <label>Número de carpeta:</label>
-            <input
-              className="field-input"
-              value={nuevaCarpeta}
-              onChange={(e) => setNuevaCarpeta(e.target.value)}
-              placeholder="Ej. 123/2026"
-              required
-            />
-            <button className="btn btn-primary" type="submit" disabled={guardando}>
-              {guardando ? "Guardando..." : "Agregar carpeta"}
-            </button>
-          </div>
-        </form>
-      )}
+      <div className="page-heading">
+        <p>Las carpetas se crean automáticamente al registrar una petición.</p>
+      </div>
 
-      {error ? <div className="status-banner error" style={{ marginTop: 16 }}>{error}</div> : null}
-      {aviso ? <div className="status-banner success" style={{ marginTop: 16 }}>{aviso}</div> : null}
+      {error ? <div className="status-banner error">{error}</div> : null}
 
       <div className="card" style={{ padding: 0, overflow: "hidden", marginTop: 16 }}>
         <table className="table">

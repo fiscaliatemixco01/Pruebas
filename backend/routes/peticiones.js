@@ -39,6 +39,31 @@ const COLUMNA_ENTREGA = {
   requerimiento: 'entrega_requerimiento',
 };
 
+// ---------- MAYÚSCULAS Y CARPETAS ----------
+// Texto recortado y en mayúsculas; vacío/undefined -> null
+const mayus = (v) =>
+  v === undefined || v === null || String(v).trim() === '' ? null : String(v).trim().toUpperCase();
+
+// Devuelve el número de carpeta a usar: si ya existe (sin importar mayúsculas) usa la
+// existente; si no existe, la crea.
+async function asegurarCarpeta(valor) {
+  const numero = mayus(valor);
+  if (!numero) return null;
+
+  await pool.query(
+    `INSERT INTO carpetas (numero_carpeta)
+     SELECT $1::text
+      WHERE NOT EXISTS (SELECT 1 FROM carpetas WHERE UPPER(numero_carpeta) = $1::text)
+     ON CONFLICT DO NOTHING`,
+    [numero]
+  );
+  const r = await pool.query(
+    'SELECT numero_carpeta FROM carpetas WHERE UPPER(numero_carpeta) = $1 LIMIT 1',
+    [numero]
+  );
+  return r.rows[0]?.numero_carpeta ?? numero;
+}
+
 // ---------- NOTIFICACIONES (un fallo aquí nunca debe romper la operación) ----------
 async function notificar(usuarioIds, petId, tipo, mensaje) {
   const ids = [...new Set(usuarioIds.filter(Boolean))];
@@ -46,7 +71,7 @@ async function notificar(usuarioIds, petId, tipo, mensaje) {
   try {
     await pool.query(
       `INSERT INTO notificaciones (us_id, pet_id, tipo, mensaje)
-       SELECT unnest($1::int[]), $2, $3, $4`,
+       SELECT unnest($1::int[]), $2::int, $3::text, $4::text`,
       [ids, petId, tipo, mensaje]
     );
   } catch (error) {
@@ -340,16 +365,18 @@ router.post('/', requerirRol('Administrador', 'Receptor'), async (req, res) => {
       return res.status(400).json({ error: `Esa materia no corresponde al llamado ${codigo}` });
     }
 
-    // Si viene perito, debe ser un usuario con rol Perito
+    // Si viene perito, debe ser un usuario con rol Perito y de la misma materia
     const peritoFinal = perito_id === '' || perito_id === undefined || perito_id === null ? null : perito_id;
     if (peritoFinal !== null) {
       const pr = await pool.query(
         `SELECT 1 FROM usuarios u
            JOIN roles r ON r.id = u.rol_id
-          WHERE u.id = $1 AND r.nom_rol = 'Perito'`,
-        [peritoFinal]
+          WHERE u.id = $1 AND r.nom_rol = 'Perito' AND u.materia_id = $2`,
+        [peritoFinal, materia_id]
       );
-      if (!pr.rows[0]) return res.status(400).json({ error: 'El perito seleccionado no es válido' });
+      if (!pr.rows[0]) {
+        return res.status(400).json({ error: 'El perito seleccionado no es válido o no corresponde a la materia' });
+      }
     }
 
     // Número manual (FMG, FMAP): obligatorio; FMAP con formato ZO/123 o JO/123
@@ -366,6 +393,10 @@ router.post('/', requerirRol('Administrador', 'Receptor'), async (req, res) => {
       }
     }
 
+    // Si la carpeta ya existe se usa la existente; si no, se crea
+    const carpetaFinal = await asegurarCarpeta(numero_carpeta);
+    if (!carpetaFinal) return res.status(400).json({ error: 'El número de carpeta es obligatorio' });
+
     const resultado = await pool.query(
       `INSERT INTO peticiones
         (llamado_id, receptor_id, nombre_ministerio_publico, con_detenido, materia_id, numero_carpeta, descripcion_solicitud, numero_llamado, perito_id)
@@ -374,12 +405,12 @@ router.post('/', requerirRol('Administrador', 'Receptor'), async (req, res) => {
       [
         llamado_id,
         receptor_id,
-        nombre_ministerio_publico,
+        mayus(nombre_ministerio_publico),
         con_detenido,
         materia_id,
-        numero_carpeta,
-        descripcion_solicitud,
-        numero,
+        carpetaFinal,
+        mayus(descripcion_solicitud),
+        numero, // ya viene en mayúsculas
         peritoFinal,
       ]
     );
@@ -420,12 +451,25 @@ router.put('/:id', requerirRol('Administrador', 'Receptor'), async (req, res) =>
   try {
     if (req.usuario.rol === 'Receptor') {
       const p = await pool.query(
-        'SELECT receptor_id, perito_id FROM peticiones WHERE id = $1',
+        'SELECT receptor_id, perito_id, materia_id FROM peticiones WHERE id = $1',
         [id]
       );
       if (!p.rows[0]) return res.status(404).json({ error: 'Petición no encontrada' });
       if (p.rows[0].receptor_id !== req.usuario.id || p.rows[0].perito_id !== null) {
         return res.status(403).json({ error: 'No tienes permiso para editar esta petición' });
+      }
+
+      // El perito debe ser de la materia de la petición
+      if (n(b.perito_id)) {
+        const pr = await pool.query(
+          `SELECT 1 FROM usuarios u
+             JOIN roles r ON r.id = u.rol_id
+            WHERE u.id = $1 AND r.nom_rol = 'Perito' AND u.materia_id = $2`,
+          [n(b.perito_id), p.rows[0].materia_id]
+        );
+        if (!pr.rows[0]) {
+          return res.status(400).json({ error: 'El perito seleccionado no corresponde a la materia' });
+        }
       }
 
       const r = await pool.query(
@@ -443,9 +487,34 @@ router.put('/:id', requerirRol('Administrador', 'Receptor'), async (req, res) =>
       return res.json(r.rows[0]);
     }
 
-    const previa = await pool.query('SELECT perito_id FROM peticiones WHERE id = $1', [id]);
-
     // Administrador
+    const previa = await pool.query(
+      'SELECT perito_id, materia_id FROM peticiones WHERE id = $1',
+      [id]
+    );
+    if (!previa.rows[0]) return res.status(404).json({ error: 'Petición no encontrada' });
+
+    // El perito debe ser de la materia. Solo se valida si el perito o la materia
+    // cambian, para no bloquear la edición de peticiones antiguas que ya no coinciden.
+    const peritoNuevo = 'perito_id' in b ? n(b.perito_id) : previa.rows[0].perito_id;
+    const materiaNueva = n(b.materia_id) ?? previa.rows[0].materia_id;
+    const cambioPerito = String(peritoNuevo ?? '') !== String(previa.rows[0].perito_id ?? '');
+    const cambioMateria = String(materiaNueva) !== String(previa.rows[0].materia_id);
+
+    if (peritoNuevo && (cambioPerito || cambioMateria)) {
+      const pr = await pool.query(
+        `SELECT 1 FROM usuarios u
+           JOIN roles r ON r.id = u.rol_id
+          WHERE u.id = $1 AND r.nom_rol = 'Perito' AND u.materia_id = $2`,
+        [peritoNuevo, materiaNueva]
+      );
+      if (!pr.rows[0]) {
+        return res.status(400).json({ error: 'El perito seleccionado no es válido o no corresponde a la materia' });
+      }
+    }
+
+    const carpetaFinal = b.numero_carpeta ? await asegurarCarpeta(b.numero_carpeta) : null;
+
     const resultado = await pool.query(
       `UPDATE peticiones SET
          receptor_id               = COALESCE($1, receptor_id),
@@ -462,11 +531,11 @@ router.put('/:id', requerirRol('Administrador', 'Receptor'), async (req, res) =>
        RETURNING *`,
       [
         n(b.receptor_id),
-        n(b.nombre_ministerio_publico),
+        mayus(b.nombre_ministerio_publico),
         n(b.con_detenido),
         n(b.materia_id),
-        n(b.numero_carpeta),
-        n(b.descripcion_solicitud),
+        carpetaFinal,
+        mayus(b.descripcion_solicitud),
         'perito_id' in b, n(b.perito_id),
         n(b.entrega_dictamen),
         n(b.entrega_informe),
@@ -484,6 +553,7 @@ router.put('/:id', requerirRol('Administrador', 'Receptor'), async (req, res) =>
       [req.usuario.id, id]
     );
 
+    // Solo se avisa al perito cuando cambia, no en cada edición
     const nuevoPerito = resultado.rows[0].perito_id;
     if (nuevoPerito && nuevoPerito !== previa.rows[0]?.perito_id) {
       await notificar([nuevoPerito], id, 'asignada',
