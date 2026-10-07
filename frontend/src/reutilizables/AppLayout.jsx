@@ -94,6 +94,7 @@ const NAV_ITEMS = [
   { to: "/notificaciones", label: "Notificaciones", icon: "notificaciones", vista: "notificaciones" },
   { to: "/crear-cuenta", label: "Crear cuenta", icon: "crearCuenta", vista: "crearCuenta" },
   { to: "/carpetas", label: "Carpetas", icon: "expedientes", vista: "carpetas" },
+  { to: "/respaldo", label: "Respaldo", icon: "expedientes", vista: "respaldo" },
 ];
 
 export default function AppLayout({ title, children }) {
