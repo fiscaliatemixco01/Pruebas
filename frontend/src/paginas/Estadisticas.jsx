@@ -3,6 +3,7 @@ import AppLayout from "../reutilizables/AppLayout";
 import { SelectField } from "../reutilizables/Field";
 import { peticionesApi } from "../api/peticiones";
 import { estadisticasApi } from "../api/estadisticas";
+import ReporteEstadisticoPDF from "../reutilizables/ReporteEstadisticoPDF";
 import "./Estadisticas.css";
 
 const COLORES = [
@@ -199,7 +200,7 @@ export default function Estadisticas() {
           </button>
         </div>
       </div>
-
+      <ReporteEstadisticoPDF />
       {esTodas ? (
         <div className="card">
           <div className="page-heading" style={{ marginBottom: 16 }}>

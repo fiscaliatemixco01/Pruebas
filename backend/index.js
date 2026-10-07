@@ -7,7 +7,7 @@ const cors = require('cors');
 const carpetasRoutes = require('./routes/carpetas');
 const peticionesRoutes = require('./routes/peticiones');
 const { verificarToken, requerirRol } = require('./middleware/auth');
-
+const respaldoRoutes = require('./routes/respaldo');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -40,6 +40,9 @@ app.use('/api/carpetas', verificarToken, carpetasRoutes);
 app.use('/api/peticiones', verificarToken, peticionesRoutes);
 
 app.use('/api/notificaciones', require('./routes/notificaciones'));
+
+// Respaldo completo (el rol Administrador se exige dentro de routes/respaldo.js)
+app.use('/api/respaldo', respaldoRoutes);
 
 // Catálogo de tipos de llamado (AGREGADO NUEVAMENTE)
 app.get('/api/llamados', verificarToken, requerirRol(...TODOS), async (req, res) => {

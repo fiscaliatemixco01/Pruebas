@@ -264,6 +264,187 @@ router.get('/reporte-mensual', requerirRol('Administrador', 'Receptor', 'Consult
   }
 });
 
+// ---------- REPORTE ESTADÍSTICO ANUAL EN PDF (debe ir ANTES de /:id) ----------
+// Solicitados: peticiones recibidas en el mes.
+// Realizados: entregas (PDF del perito) cargadas en el mes.
+router.get('/reporte-estadistico', requerirRol('Administrador', 'Consulta'), async (req, res) => {
+  const anio = req.query.anio ? parseInt(req.query.anio, 10) : new Date().getFullYear();
+  if (!(anio >= 2000 && anio <= 2100)) {
+    return res.status(400).json({ error: 'Año inválido' });
+  }
+
+  try {
+    const [mat, sol, rea] = await Promise.all([
+      pool.query('SELECT id, nombre, activo FROM materias ORDER BY nombre'),
+      pool.query(
+        `SELECT p.materia_id, EXTRACT(MONTH FROM p.fecha_recibido)::int AS mes, COUNT(*)::int AS total
+           FROM peticiones p
+          WHERE p.fecha_recibido >= make_date($1, 1, 1)
+            AND p.fecha_recibido <  make_date($1 + 1, 1, 1)
+          GROUP BY p.materia_id, mes`,
+        [anio]
+      ),
+      pool.query(
+        `SELECT p.materia_id, EXTRACT(MONTH FROM e.subido_en)::int AS mes, COUNT(*)::int AS total
+           FROM entregas e
+           JOIN peticiones p ON p.id = e.peticion_id
+          WHERE e.subido_en >= make_date($1, 1, 1)
+            AND e.subido_en <  make_date($1 + 1, 1, 1)
+          GROUP BY p.materia_id, mes`,
+        [anio]
+      ),
+    ]);
+
+    // materia_id -> [12 conteos, uno por mes]
+    const acumular = (filas) => {
+      const mapa = new Map();
+      for (const f of filas) {
+        if (!mapa.has(f.materia_id)) mapa.set(f.materia_id, Array(12).fill(0));
+        mapa.get(f.materia_id)[f.mes - 1] = f.total;
+      }
+      return mapa;
+    };
+    const solicitados = acumular(sol.rows);
+    const realizados = acumular(rea.rows);
+
+    // Materias activas, más las inactivas que tengan movimiento ese año
+    const materias = mat.rows.filter(
+      (m) => m.activo || solicitados.has(m.id) || realizados.has(m.id)
+    );
+
+    const MES_CORTO = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
+    const X0 = 30;
+    const PAD = 4;
+    const W_MAT = 120;
+    const W_MES = 48;
+    const W_TOT = 60;
+    const anchoTotal = W_MAT + W_MES * 12 + W_TOT;
+
+    const doc = new PDFDocument({ size: 'A4', layout: 'landscape', margin: 30 });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="informes-periciales-${anio}.pdf"`);
+    doc.pipe(res);
+
+    // La paginación se maneja a mano: sin margen inferior, PDFKit no agrega hojas por su cuenta
+    doc.page.margins.bottom = 0;
+    doc.on('pageAdded', () => {
+      doc.page.margins.bottom = 0;
+    });
+
+    const limiteInferior = doc.page.height - 40;
+
+    // Celda con borde y texto centrado vertical y horizontalmente
+    function celda(x, y, w, h, texto, { fondo, color = '#000000', negrita = false } = {}) {
+      doc.font(negrita ? 'Helvetica-Bold' : 'Helvetica').fontSize(8);
+      if (fondo) doc.rect(x, y, w, h).fill(fondo);
+      doc.lineWidth(0.5).rect(x, y, w, h).stroke('#000000');
+      const t = String(texto);
+      const alto = doc.heightOfString(t, { width: w - PAD * 2 });
+      doc.fillColor(color).text(t, x + PAD, y + (h - alto) / 2, { width: w - PAD * 2, align: 'center' });
+    }
+
+    let y = 30;
+
+    const ALTO_TITULO = 18;
+    const ALTO_ENC = 18;
+    const ALTO_TOTAL = 20;
+
+    // Barra de título de la tabla + fila de encabezados de columna
+    function encabezado(titulo, colores) {
+      celda(X0, y, anchoTotal, ALTO_TITULO, titulo, { fondo: colores.titulo, color: '#ffffff', negrita: true });
+      y += ALTO_TITULO;
+
+      let x = X0;
+      const enc = { fondo: colores.encabezado, color: '#ffffff', negrita: true };
+      celda(x, y, W_MAT, ALTO_ENC, 'MATERIA', enc);
+      x += W_MAT;
+      MES_CORTO.forEach((mes) => {
+        celda(x, y, W_MES, ALTO_ENC, mes, enc);
+        x += W_MES;
+      });
+      celda(x, y, W_TOT, ALTO_ENC, 'TOTAL', enc);
+      y += ALTO_ENC;
+    }
+
+    function nuevaHoja(titulo, colores) {
+      doc.addPage();
+      y = 30;
+      encabezado(`${titulo} (continuación)`, colores);
+    }
+
+    let tablasDibujadas = 0;
+
+    function tabla(titulo, datos, colores) {
+      const filas = materias.map((m) => ({
+        nombre: m.nombre.toUpperCase(),
+        valores: datos.get(m.id) || Array(12).fill(0),
+      }));
+      const altos = filas.map((f) => {
+        doc.font('Helvetica-Bold').fontSize(8);
+        return Math.max(20, doc.heightOfString(f.nombre, { width: W_MAT - PAD * 2 }) + PAD * 2);
+      });
+      const alto = ALTO_TITULO + ALTO_ENC + altos.reduce((a, b) => a + b, 0) + ALTO_TOTAL;
+
+      // Si la tabla cabe completa en una hoja, pero no en lo que queda de esta, empieza en hoja nueva
+      const cabeEnUnaHoja = alto <= limiteInferior - 30;
+      if (tablasDibujadas > 0 && cabeEnUnaHoja && y + alto > limiteInferior) {
+        doc.addPage();
+        y = 30;
+      }
+
+      encabezado(titulo, colores);
+
+      // Filas por materia: si una no cabe, la tabla sigue en otra hoja repitiendo el encabezado
+      const totalesMes = Array(12).fill(0);
+      filas.forEach((f, i) => {
+        if (y + altos[i] > limiteInferior) nuevaHoja(titulo, colores);
+
+        let x = X0;
+        celda(x, y, W_MAT, altos[i], f.nombre, { negrita: true });
+        x += W_MAT;
+        f.valores.forEach((v, j) => {
+          totalesMes[j] += v;
+          celda(x, y, W_MES, altos[i], v || '');
+          x += W_MES;
+        });
+        celda(x, y, W_TOT, altos[i], f.valores.reduce((a, b) => a + b, 0), { fondo: '#e6b8b7', negrita: true });
+        y += altos[i];
+      });
+
+      // Fila de totales
+      if (y + ALTO_TOTAL > limiteInferior) nuevaHoja(titulo, colores);
+      const tot = { fondo: colores.total, color: colores.textoTotal, negrita: true };
+      let x = X0;
+      celda(x, y, W_MAT, ALTO_TOTAL, 'TOTAL', tot);
+      x += W_MAT;
+      totalesMes.forEach((v) => {
+        celda(x, y, W_MES, ALTO_TOTAL, v, tot);
+        x += W_MES;
+      });
+      celda(x, y, W_TOT, ALTO_TOTAL, totalesMes.reduce((a, b) => a + b, 0), tot);
+      y += ALTO_TOTAL + 24;
+      tablasDibujadas += 1;
+    }
+
+    // Encabezado del documento
+    doc.font('Helvetica-Bold').fontSize(14).fillColor('#000000')
+      .text(`Informes periciales ${anio}`, X0, y);
+    y += 26;
+
+    tabla('INFORMES PERICIALES SOLICITADOS', solicitados, {
+      titulo: '#77933c', encabezado: '#31869b', total: '#92cddc', textoTotal: '#000000',
+    });
+    tabla('INFORMES PERICIALES REALIZADOS', realizados, {
+      titulo: '#77933c', encabezado: '#974706', total: '#e46c0a', textoTotal: '#ffffff',
+    });
+
+    doc.end();
+  } catch (error) {
+    console.error(error);
+    if (!res.headersSent) res.status(500).json({ error: 'Error al generar el reporte' });
+  }
+});
+
 // ---------- LISTA (el perito solo ve las suyas) ----------
 router.get('/', requerirRol(...TODOS), async (req, res) => {
   const { numero_llamado, perito, fecha, numero_carpeta } = req.query;

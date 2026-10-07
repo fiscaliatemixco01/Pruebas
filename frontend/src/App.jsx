@@ -16,6 +16,9 @@ import Usuarios from "./paginas/Usuarios";
 import Carpetas from "./paginas/Carpetas";
 import { VISTAS } from "./paginas/permisos";
 import PorFirmar from "./paginas/PorFirmar";
+import Respaldo from "./paginas/Respaldo";
+
+
 
 export default function App() {
   return (
@@ -97,6 +100,15 @@ export default function App() {
               <PorFirmar />
             </ProtectedRoute>
           } 
+        />
+
+        <Route
+          path="/respaldo"
+          element={
+            <ProtectedRoute roles={VISTAS.respaldo}>
+              <Respaldo />
+            </ProtectedRoute>
+          }
         />
 
         <Route path="*" element={<Navigate to="/" replace />} />

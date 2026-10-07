@@ -39,6 +39,7 @@ export const VISTAS = {
   crearCuenta:    [ADMIN],
   bitacora:       [ADMIN],
   porFirmar: [ADMIN, RECEPTOR],
+  respaldo: [ADMIN],
 };
 
 export function puedeVer(rol, vista) {
