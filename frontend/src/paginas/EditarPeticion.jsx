@@ -5,6 +5,8 @@ import { peticionesApi } from "../api/peticiones";
 import { api } from "../api/client";
 import { useAuth } from "../context/AuthContext";
 import PeticionWizard from "./PeticionWizard";
+import { mostrarPdf } from "../reutilizables/visorPdf";
+import SelectorArchivos from "../reutilizables/SelectorArchivos";
 
 const fmtFecha = (f) => (f ? String(f).slice(0, 10) : "");
 const fmtHora = (h) => (h ? String(h).slice(0, 8) : "");
@@ -217,11 +219,19 @@ export default function EditarPeticion() {
                     <option value="informe">Informe</option>
                     <option value="requerimiento">Requerimiento</option>
                   </select>
-                  <input
-                    type="file"
+                  <SelectorArchivos
                     accept="application/pdf"
                     onChange={(e) => setArchivo(e.target.files[0] || null)}
                   />
+                  {archivo ? (
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() => mostrarPdf(archivo, archivo.name)}
+                    >
+                      Vista previa
+                    </button>
+                  ) : null}
                   <button className="btn btn-primary" type="submit" disabled={subiendo}>
                     {subiendo ? "Subiendo..." : "Subir PDF"}
                   </button>

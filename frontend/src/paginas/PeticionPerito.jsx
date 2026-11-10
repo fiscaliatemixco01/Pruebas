@@ -3,6 +3,8 @@ import { Link, useParams } from "react-router-dom";
 import AppLayout from "../reutilizables/AppLayout";
 import { peticionesApi } from "../api/peticiones";
 import { SelectField } from "../reutilizables/Field";
+import { mostrarPdf } from "../reutilizables/visorPdf";
+import SelectorArchivos from "../reutilizables/SelectorArchivos";
 
 const TIPOS = [
   { value: "dictamen", label: "Dictamen" },
@@ -178,11 +180,19 @@ export default function PeticionPerito() {
               </div>
 
               <div className="file-input-row">
-                <input
-                  type="file"
+                <SelectorArchivos
                   accept="application/pdf"
                   onChange={(e) => setArchivo(e.target.files?.[0] || null)}
                 />
+                {archivo ? (
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => mostrarPdf(archivo, archivo.name)}
+                  >
+                    Vista previa
+                  </button>
+                ) : null}
                 <span className="field-hint" style={{ margin: 0 }}>
                   Solo PDF, máximo 20 MB.
                 </span>

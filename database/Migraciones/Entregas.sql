@@ -37,3 +37,12 @@ CREATE TABLE IF NOT EXISTS notificaciones (
 
 CREATE INDEX IF NOT EXISTS idx_notificaciones_usuario
   ON notificaciones (us_id, leida, creada_en DESC);
+
+
+
+
+--CAMBIOS DEL DIA 11/06/2024 PARA LA CONTRA CIFRADA
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS password_cifrada TEXT;
+
+INSERT INTO acciones (nom_accion) VALUES ('Ver contraseña')
+ON CONFLICT (nom_accion) DO NOTHING;

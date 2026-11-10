@@ -6,6 +6,7 @@ import usePendientes from "../reutilizables/usePendientes";
 import useTrabajoPendiente from "../reutilizables/useTrabajoPendiente";
 import { notificacionesApi } from "../api/notificaciones";
 import fiscaliaLogo from "../assets/FISCALIA_LOGO.png";
+import VisorPdf from "./VisorPdf.jsx";
 import "./AppLayout.css";
 
 const ICONS = {
@@ -208,6 +209,9 @@ const puntos = {
 
         <main className="shell-content">{children}</main>
       </div>
+
+      {/* Visor global de PDF para las vistas previas */}
+      <VisorPdf />
     </div>
   );
 }
